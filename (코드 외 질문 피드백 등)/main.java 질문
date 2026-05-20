@@ -1,0 +1,114 @@
+Main.java
+javapublic static void main(String[] args) {
+    SwingUtilities.invokeLater(LoginFrame::new);
+}
+
+기능
+프로그램 시작점이에요. 딱 한 줄만 있어요.
+
+왜 SwingUtilities.invokeLater를 쓰나요?
+Java Swing은 EDT(Event Dispatch Thread) 라는 전용 스레드에서만 UI를 건드려야 해요.
+main 스레드      → 일반 코드 실행
+EDT 스레드       → UI 생성/수정 전담
+
+main에서 직접 UI 생성하면
+→ 스레드 충돌 가능
+→ 화면 깨짐, 오류 발생
+
+invokeLater 쓰면
+→ "EDT야, 나중에 이거 실행해줘" 라고 예약
+→ EDT가 안전하게 LoginFrame 생성
+
+LoginFrame::new 가 뭔가요?
+java// 이 두 개는 완전히 같은 코드예요
+SwingUtilities.invokeLater(LoginFrame::new);
+SwingUtilities.invokeLater(() -> new LoginFrame());
+LoginFrame::new 는 메서드 참조 문법으로 new LoginFrame() 을 짧게 쓴 거예요.
+
+궁금한 거 있으면 물어보세요!입력 내용: 쓰레드가 머임쓰레드가 머임invokelater가 뭐고 edt가 머임메인에서 ui생성하면 오류, 수정에 불편함도 있고 여러 문제가 발생해서 별도의 파일에서 로딩하는거임?대충 swingutiliteies의 invokelater 함수로 새로운 loginframe을 생성하는건가?오전 9:19Claude 응답: 하나씩 설명할게요!하나씩 설명할게요!
+
+1. 스레드가 뭐임?
+스레드 = 작업을 처리하는 일꾼
+
+일반 프로그램
+→ 일꾼 1명이 순서대로 처리
+→ A 끝나야 B 시작
+
+멀티 스레드
+→ 일꾼 여러 명이 동시에 처리
+→ A하면서 B도 동시에
+레이더에서 예시:
+메인 스레드    → 화면 그리기
+별도 스레드    → 잔여석 데이터 가져오기
+
+동시에 실행되니까
+→ 데이터 가져오는 동안 화면이 안 멈춤
+
+2. EDT가 뭐고 invokeLater가 뭔지
+EDT(Event Dispatch Thread)
+→ Swing이 UI 전담으로 만든 특별한 스레드
+→ 버튼 클릭, 화면 갱신 등 UI 작업만 담당
+→ Swing은 EDT에서만 UI 수정 허용
+invokeLater
+→ "EDT야 이거 나중에 실행해줘" 라고 예약
+→ EDT가 여유 생기면 실행
+→ Later = 나중에
+
+3. main에서 UI 생성하면 왜 문제임?
+main 스레드 ≠ EDT
+
+main에서 직접 UI 만들면
+→ 전담 스레드(EDT)가 아닌 곳에서 UI 건드리는 것
+→ 두 스레드가 동시에 UI 수정하면 충돌
+→ 화면 깨짐, 오류 발생 가능
+
+별도 파일(LoginFrame 등)은
+→ 파일 분리랑은 다른 얘기예요
+→ invokeLater로 EDT에서 실행만 하면 됨
+
+4. 대충 이해한 거 맞음?
+SwingUtilities.invokeLater(LoginFrame::new)
+
+→ SwingUtilities: Swing 관련 유틸 클래스
+→ invokeLater:    EDT에 작업 예약
+→ LoginFrame::new: new LoginFrame() 실행해줘
+즉
+"EDT야, 시간 날 때 LoginFrame 새로 만들어줘"
+맞아요! 정확하게 이해했어요.입력 내용: 쓰레드가 따지고보면 부서의 ~담당 이런식으로 보면됨?쓰레드가 따지고보면 부서의 ~담당 이런식으로 보면됨?
+edt가 html로 치면 css같은거임?
+그니까 메인에서 ui를 생성하지 않는 건 디자인 담당이 만드는게 아니라 개발 담당이 디자인을 만드는거라 제대로 못만드는거고
+마지막은 swing의 기능중 invokelater라는 기능은 우선순위가 아니라 하긴해야되는 데 이것보다 중요한게 있으니 나중에라도 해라는거고
+new loginframe은 새로운 loginframe을 생성하는거고이해한거 맞음?오전 9:23Claude 응답: 거의 다 맞아요!거의 다 맞아요! 하나씩 확인할게요.
+
+스레드 = 부서 담당
+✅ 맞아요!
+
+메인 스레드   → 기획 담당
+EDT 스레드    → UI 담당
+별도 스레드   → 데이터 수집 담당
+
+각자 맡은 일만 해야 충돌 안 남
+
+EDT = CSS 같은 거?
+❌ 살짝 달라요
+
+CSS는 디자인 언어
+EDT는 UI 작업 전담 직원
+
+HTML/CSS로 비유하면
+→ EDT = 브라우저 렌더링 엔진
+→ 화면 그리는 작업을 전담으로 처리하는 엔진
+
+메인에서 UI 생성하면 안 되는 이유
+✅ 맞아요! 비유가 딱이에요
+
+개발 담당(main)이 디자인(UI) 건드리면
+→ 제대로 못 만들고
+→ 충돌 나고
+→ 오류 발생
+
+invokeLater = 나중에 해라
+✅ 맞아요!
+
+"지금 당장 말고
+EDT가 여유 생기면 그때 LoginFrame 만들어줘"
