@@ -4,8 +4,6 @@ import java.awt.*;
 import java.awt.event.*;
 import java.util.*;
 import java.util.List;
-import java.util.Arrays;
-
 
 public class WishCalendarPanel extends JPanel {
 
@@ -22,6 +20,7 @@ public class WishCalendarPanel extends JPanel {
     private JLabel monthLabel;
     private JPanel wishListPanel;
     private JLabel wishCountLabel;
+    private JLabel statTitle;          // ✅ 월 요약 타이틀 (갱신용)
     private JLabel[] statLabels = new JLabel[4];
 
     public WishCalendarPanel() {
@@ -33,9 +32,9 @@ public class WishCalendarPanel extends JPanel {
         setBackground(BG);
         setBorder(new EmptyBorder(16, 18, 16, 18));
 
-        // ✅ 순서 바꾸기 - 우측 먼저 만들고 (wishListPanel 초기화됨)
+        // 우측 먼저 생성 (wishListPanel 초기화 순서 문제 방지)
         JPanel right = createRightPanel();
-        JPanel left  = createLeftPanel();  // 여기서 refreshCalendar() 호출됨
+        JPanel left  = createLeftPanel();
 
         add(left, BorderLayout.CENTER);
         add(right, BorderLayout.EAST);
@@ -133,18 +132,11 @@ public class WishCalendarPanel extends JPanel {
 
         Calendar cal = Calendar.getInstance();
         cal.set(currentYear, currentMonth, 1);
-        int startDow = cal.get(Calendar.DAY_OF_WEEK) - 1; // 0=일
+        int startDow = cal.get(Calendar.DAY_OF_WEEK) - 1;
         int lastDay  = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
 
-        // 해당 월 경기 데이터 매핑 (날짜 → 경기)
+        // 해당 월 경기 데이터 매핑
         Map<String, String[]> gameMap = new HashMap<>();
-        for (String[] g : GameSchedule.getUpcomingGames(200)) {
-            String ym = g[0].substring(0, 6);
-            if (ym.equals(String.format("%04d%02d", currentYear, currentMonth + 1))) {
-                gameMap.put(g[0].substring(6, 8), g); // 일(day) → 경기
-            }
-        }
-        // 지난 경기도 포함
         for (String[] g : GameSchedule.getAllGames()) {
             String ym = g[0].substring(0, 6);
             if (ym.equals(String.format("%04d%02d", currentYear, currentMonth + 1))) {
@@ -162,19 +154,18 @@ public class WishCalendarPanel extends JPanel {
         // 날짜 채우기
         Calendar today = Calendar.getInstance();
         for (int d = 1; d <= lastDay; d++) {
-            String dayStr = String.format("%02d", d);
-            String[] game = gameMap.get(dayStr);
+            String dayStr  = String.format("%02d", d);
+            String[] game  = gameMap.get(dayStr);
             String dateKey = String.format("%04d%02d%02d", currentYear, currentMonth + 1, d);
             boolean isWished = WishManager.isWished(dateKey);
             boolean isToday  = (currentYear == today.get(Calendar.YEAR) &&
                                 currentMonth == today.get(Calendar.MONTH) &&
                                 d == today.get(Calendar.DAY_OF_MONTH));
-
             calendarGrid.add(createDayCell(d, dayStr, game, isWished, isToday, dateKey));
         }
 
         // 뒤 빈칸
-        int total = startDow + lastDay;
+        int total     = startDow + lastDay;
         int remainder = total % 7 == 0 ? 0 : 7 - (total % 7);
         for (int i = 0; i < remainder; i++) {
             JPanel empty = new JPanel();
@@ -195,7 +186,6 @@ public class WishCalendarPanel extends JPanel {
         cell.setBackground(isToday ? new Color(232, 237, 245) : WHITE);
         cell.setBorder(new EmptyBorder(4, 4, 4, 4));
 
-        // 날짜 숫자
         Calendar cal = Calendar.getInstance();
         cal.set(currentYear, currentMonth, day);
         int dow = cal.get(Calendar.DAY_OF_WEEK) - 1;
@@ -208,25 +198,24 @@ public class WishCalendarPanel extends JPanel {
         dayLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
         cell.add(dayLabel);
 
-        // 경기 필 (있을 때만)
         if (game != null) {
-            boolean isAway = game.length >= 5 && game[4].equals("원정");
-            String opponent = game[2];
+            boolean isAway   = game.length >= 5 && game[4].equals("원정");
+            String  opponent = game[2];
 
-            Color pillBg, pillFg;
+            Color  pillBg, pillFg;
             String pillText;
 
             if (isWished) {
-                pillBg  = RED;
-                pillFg  = WHITE;
+                pillBg   = RED;
+                pillFg   = WHITE;
                 pillText = "★ " + (isAway ? "" : "홈 ") + "vs " + opponent;
             } else if (isAway) {
-                pillBg  = new Color(243, 244, 246);
-                pillFg  = GRAY;
+                pillBg   = new Color(243, 244, 246);
+                pillFg   = GRAY;
                 pillText = "원정 vs " + opponent;
             } else {
-                pillBg  = new Color(232, 237, 245);
-                pillFg  = NAVY;
+                pillBg   = new Color(232, 237, 245);
+                pillFg   = NAVY;
                 pillText = "홈 vs " + opponent;
             }
 
@@ -241,7 +230,6 @@ public class WishCalendarPanel extends JPanel {
             cell.add(Box.createVerticalStrut(2));
             cell.add(pill);
 
-            // 이벤트 필
             if (isEventGame(dateKey)) {
                 JLabel evPill = new JLabel("이벤트", SwingConstants.CENTER);
                 evPill.setFont(new Font("맑은 고딕", Font.PLAIN, 9));
@@ -255,13 +243,10 @@ public class WishCalendarPanel extends JPanel {
                 cell.add(evPill);
             }
 
-            // 클릭 이벤트
             String[] finalGame = game;
             cell.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             cell.addMouseListener(new MouseAdapter() {
-                @Override public void mouseClicked(MouseEvent e) {
-                    showGamePopup(cell, finalGame, dateKey);
-                }
+                @Override public void mouseClicked(MouseEvent e) { showGamePopup(cell, finalGame, dateKey); }
                 @Override public void mouseEntered(MouseEvent e) { cell.setBackground(new Color(248, 249, 250)); }
                 @Override public void mouseExited(MouseEvent e)  { cell.setBackground(isToday ? new Color(232,237,245) : WHITE); }
             });
@@ -280,7 +265,6 @@ public class WishCalendarPanel extends JPanel {
         String  month    = dateKey.substring(4, 6);
         String  day      = dateKey.substring(6, 8);
 
-        // 경기 정보
         JPanel info = new JPanel();
         info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
         info.setBackground(WHITE);
@@ -306,7 +290,6 @@ public class WishCalendarPanel extends JPanel {
         popup.add(infoItem);
         popup.addSeparator();
 
-        // 찜하기 / 찜 해제
         JMenuItem wishItem = new JMenuItem(isWished ? "★ 찜 해제" : "☆ 찜하기");
         wishItem.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
         wishItem.setForeground(isWished ? GRAY : RED);
@@ -317,7 +300,6 @@ public class WishCalendarPanel extends JPanel {
         });
         popup.add(wishItem);
 
-        // 경기 보기 (홈경기만)
         if (!isAway) {
             JMenuItem goItem = new JMenuItem("→ 경기 일정에서 보기");
             goItem.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
@@ -347,10 +329,10 @@ public class WishCalendarPanel extends JPanel {
                 new MatteBorder(0,0,1,0,new Color(229,231,235)),
                 new EmptyBorder(10,14,10,14)));
 
-        JLabel wishTitle = new JLabel("♥  찜한 경기", SwingConstants.LEFT);
-        wishTitle.setFont(new Font("맑은 고딕", Font.BOLD, 13));
-        wishTitle.setForeground(new Color(55, 65, 81));
-        wishHeader.add(wishTitle, BorderLayout.WEST);
+        JLabel wishTitleLabel = new JLabel("♥  찜한 경기", SwingConstants.LEFT);
+        wishTitleLabel.setFont(new Font("맑은 고딕", Font.BOLD, 13));
+        wishTitleLabel.setForeground(new Color(55, 65, 81));
+        wishHeader.add(wishTitleLabel, BorderLayout.WEST);
 
         wishCountLabel = new JLabel("0경기", SwingConstants.RIGHT);
         wishCountLabel.setFont(new Font("맑은 고딕", Font.PLAIN, 11));
@@ -382,7 +364,9 @@ public class WishCalendarPanel extends JPanel {
         statHeader.setBorder(new CompoundBorder(
                 new MatteBorder(0,0,1,0,new Color(229,231,235)),
                 new EmptyBorder(10,14,10,14)));
-        JLabel statTitle = new JLabel(currentMonth+1 + "월 요약");
+
+        // ✅ 필드로 선언된 statTitle 사용
+        statTitle = new JLabel(currentMonth+1 + "월 요약");
         statTitle.setFont(new Font("맑은 고딕", Font.BOLD, 13));
         statTitle.setForeground(new Color(55,65,81));
         statHeader.add(statTitle, BorderLayout.WEST);
@@ -392,7 +376,7 @@ public class WishCalendarPanel extends JPanel {
         statGrid.setBackground(WHITE);
         statGrid.setBorder(new EmptyBorder(10, 12, 10, 12));
 
-        String[] statNames = {"홈경기", "찜한 경기", "이벤트", "원정"};
+        String[] statNames  = {"홈경기", "찜한 경기", "이벤트", "원정"};
         Color[]  statColors = {NAVY, RED, new Color(126,34,206), new Color(55,65,81)};
         for (int i = 0; i < 4; i++) {
             JPanel si = new JPanel();
@@ -428,9 +412,7 @@ public class WishCalendarPanel extends JPanel {
             empty.setAlignmentX(Component.CENTER_ALIGNMENT);
             wishListPanel.add(empty);
         } else {
-            for (String[] w : wishes) {
-                wishListPanel.add(createWishItem(w));
-            }
+            for (String[] w : wishes) wishListPanel.add(createWishItem(w));
         }
 
         wishCountLabel.setText(wishes.size() + "경기");
@@ -446,7 +428,6 @@ public class WishCalendarPanel extends JPanel {
                 new EmptyBorder(9,14,9,14)));
         item.setMaximumSize(new Dimension(Integer.MAX_VALUE, 58));
 
-        // 날짜
         JPanel dateBox = new JPanel();
         dateBox.setLayout(new BoxLayout(dateBox, BoxLayout.Y_AXIS));
         dateBox.setBackground(WHITE);
@@ -465,7 +446,6 @@ public class WishCalendarPanel extends JPanel {
         dateBox.add(dayL);
         dateBox.add(moL);
 
-        // 정보
         JPanel info = new JPanel();
         info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
         info.setBackground(WHITE);
@@ -482,7 +462,6 @@ public class WishCalendarPanel extends JPanel {
         info.add(team);
         info.add(sub);
 
-        // 삭제 버튼
         JButton delBtn = new JButton("✕");
         delBtn.setFont(new Font("맑은 고딕", Font.PLAIN, 11));
         delBtn.setForeground(GRAY);
@@ -502,6 +481,9 @@ public class WishCalendarPanel extends JPanel {
 
     // ─── 통계 갱신 ────────────────────────────────────────────
     private void refreshStats() {
+        // ✅ 캘린더 월 전환 시 타이틀 자동 갱신
+        if (statTitle != null) statTitle.setText(currentMonth+1 + "월 요약");
+
         String ym = String.format("%04d%02d", currentYear, currentMonth + 1);
         int home = 0, wished = 0, event = 0, away = 0;
 
@@ -522,7 +504,6 @@ public class WishCalendarPanel extends JPanel {
 
     // ─── 이벤트 경기 여부 ─────────────────────────────────────
     private boolean isEventGame(String dateKey) {
-        // 5/24 삼성전 클래식 유니폼 이벤트
         return dateKey.equals("20260524");
     }
 

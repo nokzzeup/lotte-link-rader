@@ -4,7 +4,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.util.List;
 
-public class NoticePanel extends JPanel {
+public class NoticeListPanel extends JPanel {
 
     private static final Color NAVY     = new Color(4, 30, 66);
     private static final Color RED      = new Color(208, 15, 49);
@@ -16,28 +16,35 @@ public class NoticePanel extends JPanel {
     private static final String ADMIN_PASSWORD = "admin1234";
 
     private JPanel noticeListPanel;
-    private JPanel detailPanel;
+    private JPanel detailPanel;        // 우측 상세 패널 (MainFrame에서 가져다 씀)
     private JLabel statusLabel;
     private String selectedFilter = "전체";
 
-    public NoticePanel() {
+    public NoticeListPanel() {
         setLayout(new BorderLayout());
-        setBackground(BG);
+        setBackground(WHITE);
+        setPreferredSize(new Dimension(280, 0));
+        setBorder(new MatteBorder(0, 0, 0, 1, new Color(229, 231, 235)));
 
         NoticeManager.load();
 
-        add(createLeftPanel(), BorderLayout.WEST);
-        add(createDetailPanel(), BorderLayout.CENTER);
+        // 상세 패널 미리 생성
+        detailPanel = createDetailPanel();
 
+        add(createFilterBar(), BorderLayout.NORTH);
+        add(createListArea(), BorderLayout.CENTER);
+        add(createBottomBar(), BorderLayout.SOUTH);
+
+        refreshNoticeList();
         fetchNoticesInBackground();
     }
 
+    // 우측 상세 패널 반환 (MainFrame이 CENTER에 배치)
+    public JPanel getDetailPanel() { return detailPanel; }
+
     // ─── 백그라운드 크롤링 ────────────────────────────────────
     private void fetchNoticesInBackground() {
-        SwingUtilities.invokeLater(() -> {
-            if (statusLabel != null) statusLabel.setText("공식 공지 불러오는 중...");
-        });
-
+        if (statusLabel != null) statusLabel.setText("공식 공지 불러오는 중...");
         new Thread(() -> {
             List<Notice> fetched = NoticeManager.fetchFromWeb();
             NoticeManager.mergeFromWeb(fetched);
@@ -49,81 +56,23 @@ public class NoticePanel extends JPanel {
         }).start();
     }
 
-    // ─── 좌측: 공지 목록 ──────────────────────────────────────
-    private JPanel createLeftPanel() {
-        JPanel left = new JPanel(new BorderLayout());
-        left.setBackground(WHITE);
-        left.setPreferredSize(new Dimension(280, 0));
-        left.setBorder(new MatteBorder(0, 0, 0, 1, new Color(229, 231, 235)));
-
-        JPanel topBar = new JPanel(new BorderLayout());
-        topBar.setBackground(WHITE);
-        topBar.setBorder(new MatteBorder(0, 0, 1, 0, new Color(229, 231, 235)));
-
-        // 필터 버튼 (기타 추가)
-        JPanel filterRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 8));
-        filterRow.setBackground(WHITE);
+    // ─── 필터 바 ──────────────────────────────────────────────
+    private JPanel createFilterBar() {
+        JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 8));
+        bar.setBackground(WHITE);
+        bar.setBorder(new MatteBorder(0, 0, 1, 0, new Color(229, 231, 235)));
 
         String[] filters = {"전체", "이벤트", "예매", "공지", "기타"};
-        for (String f : filters) filterRow.add(createFilterBtn(f, filterRow));
-        topBar.add(filterRow, BorderLayout.CENTER);
-
-        // 새로고침 버튼
-        JButton refreshBtn = new JButton("↻");
-        refreshBtn.setFont(new Font("맑은 고딕", Font.PLAIN, 14));
-        refreshBtn.setForeground(GRAY);
-        refreshBtn.setBackground(WHITE);
-        refreshBtn.setBorderPainted(false);
-        refreshBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        refreshBtn.setToolTipText("공식 공지 새로고침");
-        refreshBtn.addActionListener(e -> fetchNoticesInBackground());
-        topBar.add(refreshBtn, BorderLayout.EAST);
-
-        left.add(topBar, BorderLayout.NORTH);
-
-        noticeListPanel = new JPanel();
-        noticeListPanel.setLayout(new BoxLayout(noticeListPanel, BoxLayout.Y_AXIS));
-        noticeListPanel.setBackground(WHITE);
-
-        JScrollPane scroll = new JScrollPane(noticeListPanel);
-        scroll.setBorder(null);
-        scroll.getVerticalScrollBar().setUnitIncrement(10);
-        left.add(scroll, BorderLayout.CENTER);
-
-        JPanel bottomBar = new JPanel(new BorderLayout());
-        bottomBar.setBackground(LIGHT_BG);
-        bottomBar.setBorder(new CompoundBorder(
-                new MatteBorder(1, 0, 0, 0, new Color(229, 231, 235)),
-                new EmptyBorder(6, 14, 6, 14)));
-
-        statusLabel = new JLabel("공지를 불러오는 중...");
-        statusLabel.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
-        statusLabel.setForeground(GRAY);
-        bottomBar.add(statusLabel, BorderLayout.WEST);
-
-        JButton adminBtn = new JButton("+ 공지 추가");
-        adminBtn.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
-        adminBtn.setForeground(NAVY);
-        adminBtn.setBackground(WHITE);
-        adminBtn.setBorder(new LineBorder(new Color(229, 231, 235)));
-        adminBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        adminBtn.addActionListener(e -> showAdminDialog());
-        bottomBar.add(adminBtn, BorderLayout.EAST);
-
-        left.add(bottomBar, BorderLayout.SOUTH);
-
-        refreshNoticeList();
-        return left;
+        for (String f : filters) bar.add(createFilterBtn(f, bar));
+        return bar;
     }
 
-    // ─── 필터 버튼 ────────────────────────────────────────────
     private JLabel createFilterBtn(String text, JPanel parent) {
         JLabel btn = new JLabel(text);
         btn.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
         btn.setBorder(new EmptyBorder(3, 8, 3, 8));
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         updateFilterStyle(btn, text.equals(selectedFilter));
-
         btn.addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) {
                 selectedFilter = text;
@@ -152,7 +101,43 @@ public class NoticePanel extends JPanel {
         btn.setOpaque(true);
     }
 
-    // ─── 공지 목록 갱신 ───────────────────────────────────────
+    // ─── 목록 영역 ────────────────────────────────────────────
+    private JScrollPane createListArea() {
+        noticeListPanel = new JPanel();
+        noticeListPanel.setLayout(new BoxLayout(noticeListPanel, BoxLayout.Y_AXIS));
+        noticeListPanel.setBackground(WHITE);
+
+        JScrollPane scroll = new JScrollPane(noticeListPanel);
+        scroll.setBorder(null);
+        scroll.getVerticalScrollBar().setUnitIncrement(10);
+        return scroll;
+    }
+
+    // ─── 하단 바 ──────────────────────────────────────────────
+    private JPanel createBottomBar() {
+        JPanel bar = new JPanel(new BorderLayout());
+        bar.setBackground(LIGHT_BG);
+        bar.setBorder(new CompoundBorder(
+                new MatteBorder(1, 0, 0, 0, new Color(229, 231, 235)),
+                new EmptyBorder(6, 14, 6, 14)));
+
+        statusLabel = new JLabel("공지를 불러오는 중...");
+        statusLabel.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
+        statusLabel.setForeground(GRAY);
+        bar.add(statusLabel, BorderLayout.WEST);
+
+        JButton adminBtn = new JButton("+ 공지 추가");
+        adminBtn.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
+        adminBtn.setForeground(NAVY);
+        adminBtn.setBackground(WHITE);
+        adminBtn.setBorder(new LineBorder(new Color(229, 231, 235)));
+        adminBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        adminBtn.addActionListener(e -> showAdminDialog());
+        bar.add(adminBtn, BorderLayout.EAST);
+        return bar;
+    }
+
+    // ─── 목록 갱신 ────────────────────────────────────────────
     private void refreshNoticeList() {
         noticeListPanel.removeAll();
         List<Notice> all = NoticeManager.getAll();
@@ -182,14 +167,13 @@ public class NoticePanel extends JPanel {
         item.setBorder(new CompoundBorder(
                 new MatteBorder(0, 0, 1, 0, new Color(243, 244, 246)),
                 new EmptyBorder(10, 14, 10, 14)));
-        item.setMaximumSize(new Dimension(Integer.MAX_VALUE, 62));
+        item.setMaximumSize(new Dimension(Integer.MAX_VALUE, 80));
         item.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
         JPanel left = new JPanel();
         left.setLayout(new BoxLayout(left, BoxLayout.Y_AXIS));
         left.setBackground(WHITE);
 
-        // 태그 + 날짜
         JPanel topRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
         topRow.setBackground(WHITE);
         topRow.add(createTagLabel(notice.getTag()));
@@ -199,13 +183,20 @@ public class NoticePanel extends JPanel {
         dateL.setForeground(GRAY);
         topRow.add(dateL);
 
-        // 제목만 표시 (미리보기 제거)
-        JLabel title = new JLabel(notice.getTitle());
+        // 제목 JTextArea (긴 제목 2줄 표시)
+        JTextArea title = new JTextArea(notice.getTitle());
         title.setFont(new Font("맑은 고딕", notice.isUnread() ? Font.BOLD : Font.PLAIN, 12));
         title.setForeground(notice.isUnread() ? new Color(17,24,39) : new Color(107,114,128));
+        title.setBackground(WHITE);
+        title.setLineWrap(true);
+        title.setWrapStyleWord(true);
+        title.setEditable(false);
+        title.setOpaque(false);
+        title.setBorder(null);
+        title.setRows(2);
 
         left.add(topRow);
-        left.add(Box.createVerticalStrut(4));
+        left.add(Box.createVerticalStrut(3));
         left.add(title);
 
         item.add(left, BorderLayout.CENTER);
@@ -231,17 +222,15 @@ public class NoticePanel extends JPanel {
         return item;
     }
 
-    // ─── 우측: 안내 패널 ──────────────────────────────────────
+    // ─── 우측 상세 패널 ───────────────────────────────────────
     private JPanel createDetailPanel() {
-        detailPanel = new JPanel(new GridBagLayout());
-        detailPanel.setBackground(BG);
-
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(BG);
         JLabel guide = new JLabel("공지를 선택하세요", SwingConstants.CENTER);
         guide.setFont(new Font("맑은 고딕", Font.PLAIN, 14));
         guide.setForeground(GRAY);
-        detailPanel.add(guide);
-
-        return detailPanel;
+        panel.add(guide);
+        return panel;
     }
 
     private void showDetail(Notice notice) {
@@ -280,27 +269,24 @@ public class NoticePanel extends JPanel {
         cardHeader.add(titleL);
         card.add(cardHeader, BorderLayout.NORTH);
 
-        boolean isWebNotice = notice.getContent().startsWith("http");
+        boolean isWeb = notice.getContent().startsWith("http");
 
-        if (isWebNotice) {
-            // 로딩 중 표시
-            JPanel loadingPanel = new JPanel(new GridBagLayout());
-            loadingPanel.setBackground(WHITE);
-            JLabel loading = new JLabel("내용 불러오는 중...");
-            loading.setFont(new Font("맑은 고딕", Font.PLAIN, 13));
-            loading.setForeground(GRAY);
-            loadingPanel.add(loading);
-            card.add(loadingPanel, BorderLayout.CENTER);
+        if (isWeb) {
+            JPanel loading = new JPanel(new GridBagLayout());
+            loading.setBackground(WHITE);
+            JLabel lbl = new JLabel("내용 불러오는 중...");
+            lbl.setFont(new Font("맑은 고딕", Font.PLAIN, 13));
+            lbl.setForeground(GRAY);
+            loading.add(lbl);
+            card.add(loading, BorderLayout.CENTER);
 
-            // 백그라운드에서 본문 크롤링
             String url = notice.getContent();
             new Thread(() -> {
                 String content = NoticeManager.fetchDetail(url);
                 SwingUtilities.invokeLater(() -> {
-                    card.remove(loadingPanel);
-                    // 내용이 비어있으면 이미지 공지 안내
+                    card.remove(loading);
                     if (content.trim().isEmpty() || content.equals("내용을 불러올 수 없습니다.")) {
-                        card.add(createImageNoticePanel(url), BorderLayout.CENTER);
+                        card.add(createImageNoticePanel(), BorderLayout.CENTER);
                     } else {
                         card.add(createContentPanel(content), BorderLayout.CENTER);
                     }
@@ -308,17 +294,15 @@ public class NoticePanel extends JPanel {
                     card.repaint();
                 });
             }).start();
-
         } else {
             card.add(createContentPanel(notice.getContent()), BorderLayout.CENTER);
         }
 
-        // 하단 버튼 바
         JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 10));
         btnRow.setBackground(LIGHT_BG);
         btnRow.setBorder(new MatteBorder(1,0,0,0,new Color(229,231,235)));
 
-        if (isWebNotice) {
+        if (isWeb) {
             JButton linkBtn = new JButton("원문 보기 →");
             linkBtn.setFont(new Font("맑은 고딕", Font.PLAIN, 11));
             linkBtn.setForeground(new Color(99,102,241));
@@ -326,11 +310,8 @@ public class NoticePanel extends JPanel {
             linkBtn.setBorder(new LineBorder(new Color(229,231,235)));
             linkBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             linkBtn.addActionListener(e -> {
-                try {
-                    Desktop.getDesktop().browse(new java.net.URI(notice.getContent()));
-                } catch (Exception ex) {
-                    JOptionPane.showMessageDialog(this, "브라우저를 열 수 없습니다.", "오류", JOptionPane.ERROR_MESSAGE);
-                }
+                try { Desktop.getDesktop().browse(new java.net.URI(notice.getContent())); }
+                catch (Exception ex) { JOptionPane.showMessageDialog(this, "브라우저를 열 수 없습니다.", "오류", JOptionPane.ERROR_MESSAGE); }
             });
             btnRow.add(linkBtn);
         } else {
@@ -368,7 +349,6 @@ public class NoticePanel extends JPanel {
         detailPanel.repaint();
     }
 
-    // 본문 텍스트 패널 - JTextArea로 줄바꿈 처리
     private JScrollPane createContentPanel(String content) {
         JTextArea textArea = new JTextArea(content);
         textArea.setFont(new Font("맑은 고딕", Font.PLAIN, 13));
@@ -379,18 +359,15 @@ public class NoticePanel extends JPanel {
         textArea.setEditable(false);
         textArea.setMargin(new Insets(16, 18, 16, 18));
         textArea.setBorder(null);
-
         JScrollPane scroll = new JScrollPane(textArea);
         scroll.setBorder(null);
         scroll.getVerticalScrollBar().setUnitIncrement(10);
         return scroll;
     }
 
-    // 이미지만 있는 공지 안내 패널
-    private JPanel createImageNoticePanel(String url) {
+    private JPanel createImageNoticePanel() {
         JPanel p = new JPanel(new GridBagLayout());
         p.setBackground(WHITE);
-
         JPanel box = new JPanel();
         box.setLayout(new BoxLayout(box, BoxLayout.Y_AXIS));
         box.setBackground(WHITE);
@@ -414,7 +391,6 @@ public class NoticePanel extends JPanel {
         box.add(msg1);
         box.add(Box.createVerticalStrut(6));
         box.add(msg2);
-
         p.add(box);
         return p;
     }
@@ -432,7 +408,7 @@ public class NoticePanel extends JPanel {
         detailPanel.repaint();
     }
 
-    // ─── 관리자 다이얼로그 ────────────────────────────────────
+    // ─── 관리자 ───────────────────────────────────────────────
     private void showAdminDialog() {
         String pw = JOptionPane.showInputDialog(this, "관리자 비밀번호:", "관리자 인증", JOptionPane.PLAIN_MESSAGE);
         if (!ADMIN_PASSWORD.equals(pw)) {
@@ -479,9 +455,7 @@ public class NoticePanel extends JPanel {
 
         JTextField titleField = new JTextField(existing != null ? existing.getTitle() : "");
         titleField.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
-        titleField.setBorder(new CompoundBorder(
-                new LineBorder(new Color(229,231,235),1),
-                new EmptyBorder(6,8,6,8)));
+        titleField.setBorder(new CompoundBorder(new LineBorder(new Color(229,231,235),1), new EmptyBorder(6,8,6,8)));
         titleField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
 
         JLabel contentL = new JLabel("내용");
@@ -498,17 +472,11 @@ public class NoticePanel extends JPanel {
         contentScroll.setBorder(new LineBorder(new Color(229,231,235),1));
         contentScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 120));
 
-        form.add(tagL);
-        form.add(Box.createVerticalStrut(4));
-        form.add(tagBox);
+        form.add(tagL); form.add(Box.createVerticalStrut(4)); form.add(tagBox);
         form.add(Box.createVerticalStrut(12));
-        form.add(titleL);
-        form.add(Box.createVerticalStrut(4));
-        form.add(titleField);
+        form.add(titleL); form.add(Box.createVerticalStrut(4)); form.add(titleField);
         form.add(Box.createVerticalStrut(12));
-        form.add(contentL);
-        form.add(Box.createVerticalStrut(4));
-        form.add(contentScroll);
+        form.add(contentL); form.add(Box.createVerticalStrut(4)); form.add(contentScroll);
 
         JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 10));
         btnPanel.setBackground(LIGHT_BG);
@@ -525,8 +493,8 @@ public class NoticePanel extends JPanel {
         saveBtn.setOpaque(true);
         saveBtn.setBorderPainted(false);
         saveBtn.addActionListener(e -> {
-            String tag     = (String) tagBox.getSelectedItem();
-            String title   = titleField.getText().trim();
+            String tag = (String) tagBox.getSelectedItem();
+            String title = titleField.getText().trim();
             String content = contentArea.getText().trim();
             if (title.isEmpty() || content.isEmpty()) {
                 JOptionPane.showMessageDialog(dialog, "제목과 내용을 입력해주세요.", "입력 오류", JOptionPane.WARNING_MESSAGE);
@@ -547,7 +515,6 @@ public class NoticePanel extends JPanel {
         dialog.setVisible(true);
     }
 
-    // ─── 태그 라벨 ────────────────────────────────────────────
     private JLabel createTagLabel(String tag) {
         JLabel l = new JLabel(tag);
         l.setFont(new Font("맑은 고딕", Font.BOLD, 9));

@@ -19,16 +19,15 @@ public class MainFrame extends JFrame {
     private static final Color DARK_BG  = new Color(2, 14, 34);
 
     // ─── 필드 ────────────────────────────────────────────────
-    private JScrollPane seatScroll;       // 잔여석 표시 스크롤 영역
-    private JLabel lastUpdateLabel;       // 마지막 갱신 시간 표시
-    private Timer autoRefreshTimer;       // 선택 경기 15초 자동 갱신 타이머
-    private Timer badgeRefreshTimer;      // 전체 경기 배지 15초 갱신 타이머
-    private String[] selectedGame = null; // 현재 선택된 경기
-    private JPanel selectedItem   = null; // 현재 선택된 경기 아이템 패널
-    private JButton wishBtn;              // 찜하기 버튼
-    private JPanel bodyPanel;             // 탭 전환 시 교체되는 메인 바디 패널
+    private JScrollPane seatScroll;
+    private JLabel lastUpdateLabel;
+    private Timer autoRefreshTimer;
+    private Timer badgeRefreshTimer;
+    private String[] selectedGame = null;
+    private JPanel selectedItem   = null;
+    private JButton wishBtn;
+    private JPanel bodyPanel;
 
-    // 날짜(key) → 배지 라벨(value) 매핑: 매진/예매중 배지 실시간 업데이트용
     private final Map<String, JLabel> badgeMap = new HashMap<>();
 
     // ─── 생성자 ──────────────────────────────────────────────
@@ -36,13 +35,12 @@ public class MainFrame extends JFrame {
         setTitle("Lotte-Link Radar");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1200, 780);
-        setLocationRelativeTo(null); // 화면 정중앙 배치
+        setLocationRelativeTo(null);
         setBackground(BG);
         setLayout(new BorderLayout());
 
         add(createHeader(), BorderLayout.NORTH);
 
-        // 탭 전환 시 bodyPanel 내용물만 교체하는 구조
         bodyPanel = new JPanel(new BorderLayout());
         bodyPanel.setBackground(BG);
         bodyPanel.add(createLeftPanel(), BorderLayout.WEST);
@@ -50,24 +48,20 @@ public class MainFrame extends JFrame {
         add(bodyPanel, BorderLayout.CENTER);
 
         setVisible(true);
-        startBadgeRefresh(); // 앱 시작 시 배지 갱신 시작
+        startBadgeRefresh();
     }
 
     // ─── 배지 갱신 ───────────────────────────────────────────
-    // 로딩 시 캐시된 데이터로 즉시 배지 반영 후 15초마다 서버에서 재조회
     private void startBadgeRefresh() {
-        // 캐시 데이터로 즉시 반영
         SwingUtilities.invokeLater(() -> {
             for (String[] game : GameSchedule.getUpcomingGames(30)) {
                 JLabel badge = badgeMap.get(game[0]);
                 if (badge == null || game[3].isEmpty()) continue;
-                if (SeatDataCache.hasData(game[0]) && SeatDataCache.isSoldOut(game[0])) {
+                if (SeatDataCache.hasData(game[0]) && SeatDataCache.isSoldOut(game[0]))
                     setSoldOut(badge);
-                }
             }
         });
 
-        // 15초마다 전체 배지 갱신
         badgeRefreshTimer = new Timer();
         badgeRefreshTimer.schedule(new TimerTask() {
             @Override public void run() {
@@ -76,19 +70,15 @@ public class MainFrame extends JFrame {
         }, 15000, 15000);
     }
 
-    // 각 경기 잔여석을 별도 Thread로 조회해서 배지 업데이트
     private void refreshAllBadges() {
         for (String[] game : GameSchedule.getUpcomingGames(30)) {
             String date = game[0], time = game[1], cd = game[3];
             JLabel badge = badgeMap.get(date);
             if (badge == null || cd.isEmpty()) continue;
-
-            // 별도 Thread에서 조회 (UI 스레드 블로킹 방지)
             new Thread(() -> {
                 List<SeatInfo> seats = SeatEngine.fetch(date, time, cd);
                 SwingUtilities.invokeLater(() -> {
                     if (seats == null) return;
-                    // 휠체어석 제외 전부 매진이면 매진 배지
                     boolean sold = seats.stream()
                             .filter(s -> !s.getName().contains("휠체어"))
                             .allMatch(s -> s.getRemain() == 0);
@@ -98,17 +88,8 @@ public class MainFrame extends JFrame {
         }
     }
 
-    private void setSoldOut(JLabel b) {
-        b.setText("매진");
-        b.setBackground(new Color(254, 242, 242));
-        b.setForeground(new Color(153, 27, 27));
-    }
-
-    private void setOnSale(JLabel b) {
-        b.setText("예매중");
-        b.setBackground(new Color(236, 253, 245));
-        b.setForeground(new Color(6, 95, 70));
-    }
+    private void setSoldOut(JLabel b) { b.setText("매진"); b.setBackground(new Color(254,242,242)); b.setForeground(new Color(153,27,27)); }
+    private void setOnSale(JLabel b)  { b.setText("예매중"); b.setBackground(new Color(236,253,245)); b.setForeground(new Color(6,95,70)); }
 
     // ─── 헤더 ────────────────────────────────────────────────
     private JPanel createHeader() {
@@ -116,7 +97,6 @@ public class MainFrame extends JFrame {
         header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
         header.setBackground(NAVY);
 
-        // 로고 + 유저명
         JPanel topBar = new JPanel(new BorderLayout());
         topBar.setBackground(NAVY);
         topBar.setBorder(new EmptyBorder(11, 24, 11, 24));
@@ -131,7 +111,6 @@ public class MainFrame extends JFrame {
         user.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
         topBar.add(user, BorderLayout.EAST);
 
-        // 공지 티커 (공지 내용을 한 줄로 표시)
         JPanel ticker = new JPanel(new BorderLayout());
         ticker.setBackground(DARK_BG);
         ticker.setBorder(new EmptyBorder(6, 24, 6, 24));
@@ -148,12 +127,12 @@ public class MainFrame extends JFrame {
         txt.setFont(new Font("맑은 고딕", Font.PLAIN, 11));
         ticker.add(txt, BorderLayout.CENTER);
 
-        // 상단 탭 메뉴 (경기일정 / 내찜목록 / 직관기록)
+        // 상단 탭 4개
         JPanel nav = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         nav.setBackground(NAVY);
         nav.setBorder(new EmptyBorder(0, 20, 0, 0));
 
-        String[] tabs = {"경기 일정", "내 찜 목록", "직관 기록"};
+        String[] tabs = {"경기 일정", "내 찜 목록", "직관 기록", "팀 순위"};
         JLabel[] tabLabels = new JLabel[tabs.length];
         JPanel[] tabWraps  = new JPanel[tabs.length];
 
@@ -175,7 +154,6 @@ public class MainFrame extends JFrame {
             tab.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             tab.addMouseListener(new MouseAdapter() {
                 @Override public void mouseClicked(MouseEvent e) {
-                    // 클릭된 탭 활성화, 나머지 비활성화
                     for (int j = 0; j < tabs.length; j++) {
                         tabLabels[j].setForeground(j == idx ? WHITE : GRAY);
                         tabWraps[j].setBorder(j == idx
@@ -183,25 +161,17 @@ public class MainFrame extends JFrame {
                                 : new EmptyBorder(0, 0, 2, 0));
                     }
 
-                    // 탭에 따라 bodyPanel 내용 교체
                     bodyPanel.removeAll();
                     if (idx == 0) {
-                        // 경기 일정: 좌측 경기목록 + 우측 잔여석
                         bodyPanel.add(createLeftPanel(), BorderLayout.WEST);
                         bodyPanel.add(createRightPanel(), BorderLayout.CENTER);
                         startBadgeRefresh();
                     } else if (idx == 1) {
-                        // 내 찜 목록: 캘린더 전체화면
                         bodyPanel.add(new WishCalendarPanel(), BorderLayout.CENTER);
+                    } else if (idx == 2) {
+                        bodyPanel.add(new RecordPanel(), BorderLayout.CENTER);
                     } else {
-                        // 직관 기록: 준비 중
-                        JPanel coming = new JPanel(new GridBagLayout());
-                        coming.setBackground(BG);
-                        JLabel l = new JLabel("준비 중입니다");
-                        l.setFont(new Font("맑은 고딕", Font.PLAIN, 16));
-                        l.setForeground(GRAY);
-                        coming.add(l);
-                        bodyPanel.add(coming, BorderLayout.CENTER);
+                        bodyPanel.add(new KboRankPanel(), BorderLayout.CENTER);
                     }
                     bodyPanel.revalidate();
                     bodyPanel.repaint();
@@ -218,14 +188,12 @@ public class MainFrame extends JFrame {
     }
 
     // ─── 좌측 패널 ───────────────────────────────────────────
-    // 경기일정 탭과 공지사항 탭으로 구성된 좌측 패널
     private JPanel createLeftPanel() {
         JPanel left = new JPanel(new BorderLayout());
         left.setBackground(WHITE);
         left.setPreferredSize(new Dimension(280, 0));
         left.setBorder(new MatteBorder(0, 0, 0, 1, new Color(229, 231, 235)));
 
-        // 좌측 내부 탭 (경기일정 / 공지사항)
         JPanel tabBar = new JPanel(new GridLayout(1, 2));
         tabBar.setBackground(WHITE);
         tabBar.setBorder(new MatteBorder(0, 0, 1, 0, new Color(229, 231, 235)));
@@ -239,54 +207,12 @@ public class MainFrame extends JFrame {
         JLabel t2 = new JLabel("공지사항", SwingConstants.CENTER);
         t2.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
         t2.setForeground(GRAY);
-        t2.setBorder(new EmptyBorder(0, 0, 2, 0)); // 초기 빈 테두리 (빨간 선 방지)
+        t2.setBorder(new EmptyBorder(0, 0, 2, 0));
 
         tabBar.add(t1);
         tabBar.add(t2);
         left.add(tabBar, BorderLayout.NORTH);
 
-        // 경기일정 탭 클릭: 경기 목록으로 복귀
-        t1.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        t1.addMouseListener(new MouseAdapter() {
-            @Override public void mouseClicked(MouseEvent e) {
-                t1.setBorder(new MatteBorder(0, 0, 2, 0, NAVY));
-                t1.setForeground(NAVY);
-                t1.setFont(new Font("맑은 고딕", Font.BOLD, 12));
-                t2.setBorder(new EmptyBorder(0, 0, 2, 0));
-                t2.setForeground(GRAY);
-                t2.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
-
-                // 좌측 + 우측 모두 경기일정으로 교체
-                bodyPanel.removeAll();
-                bodyPanel.add(createLeftPanel(), BorderLayout.WEST);
-                bodyPanel.add(createRightPanel(), BorderLayout.CENTER);
-                startBadgeRefresh();
-                bodyPanel.revalidate();
-                bodyPanel.repaint();
-            }
-        });
-
-        // 공지사항 탭 클릭: 좌측 탭 유지 + 우측을 NoticePanel로 교체
-        t2.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        t2.addMouseListener(new MouseAdapter() {
-            @Override public void mouseClicked(MouseEvent e) {
-                t1.setBorder(new EmptyBorder(0, 0, 2, 0));
-                t1.setForeground(GRAY);
-                t1.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
-                t2.setBorder(new MatteBorder(0, 0, 2, 0, NAVY));
-                t2.setForeground(NAVY);
-                t2.setFont(new Font("맑은 고딕", Font.BOLD, 12));
-
-                // 좌측 탭 패널은 유지, 우측만 NoticePanel로 교체
-                bodyPanel.removeAll();
-                bodyPanel.add(createLeftTabOnly(t1, t2), BorderLayout.WEST);
-                bodyPanel.add(new NoticePanel(), BorderLayout.CENTER);
-                bodyPanel.revalidate();
-                bodyPanel.repaint();
-            }
-        });
-
-        // 경기 목록 (예매중 / 원정 / 오픈예정 분류)
         JPanel list = new JPanel();
         list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
         list.setBackground(WHITE);
@@ -317,32 +243,61 @@ public class MainFrame extends JFrame {
             for (String[] g : soon) list.add(createGameItem(g, "오픈예정"));
         }
 
-        JScrollPane scroll = new JScrollPane(list);
-        scroll.setBorder(null);
-        scroll.getVerticalScrollBar().setUnitIncrement(12);
-        left.add(scroll, BorderLayout.CENTER);
-        return left;
-    }
+        JScrollPane gameScroll = new JScrollPane(list);
+        gameScroll.setBorder(null);
+        gameScroll.getVerticalScrollBar().setUnitIncrement(12);
 
-    // 공지사항 탭 선택 시 좌측에 탭만 있는 패널 생성
-    // (경기 목록 없이 탭 헤더만 유지)
-    private JPanel createLeftTabOnly(JLabel t1, JLabel t2) {
-        JPanel left = new JPanel(new BorderLayout());
-        left.setBackground(WHITE);
-        left.setPreferredSize(new Dimension(280, 0));
-        left.setBorder(new MatteBorder(0, 0, 0, 1, new Color(229, 231, 235)));
+        NoticeListPanel noticeList = new NoticeListPanel();
+        noticeList.setVisible(false);
 
-        JPanel tabBar = new JPanel(new GridLayout(1, 2));
-        tabBar.setBackground(WHITE);
-        tabBar.setBorder(new MatteBorder(0, 0, 1, 0, new Color(229, 231, 235)));
-        tabBar.add(t1);
-        tabBar.add(t2);
-        left.add(tabBar, BorderLayout.NORTH);
+        JPanel stackPanel = new JPanel(new CardLayout());
+        stackPanel.add(gameScroll, "game");
+        stackPanel.add(noticeList, "notice");
+        left.add(stackPanel, BorderLayout.CENTER);
+
+        CardLayout cardLayout = (CardLayout) stackPanel.getLayout();
+
+        t1.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        t1.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) {
+                t1.setBorder(new MatteBorder(0, 0, 2, 0, NAVY));
+                t1.setForeground(NAVY);
+                t1.setFont(new Font("맑은 고딕", Font.BOLD, 12));
+                t2.setBorder(new EmptyBorder(0, 0, 2, 0));
+                t2.setForeground(GRAY);
+                t2.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
+                cardLayout.show(stackPanel, "game");
+                bodyPanel.removeAll();
+                bodyPanel.add(createLeftPanel(), BorderLayout.WEST);
+                bodyPanel.add(createRightPanel(), BorderLayout.CENTER);
+                startBadgeRefresh();
+                bodyPanel.revalidate();
+                bodyPanel.repaint();
+            }
+        });
+
+        t2.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        t2.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) {
+                t1.setBorder(new EmptyBorder(0, 0, 2, 0));
+                t1.setForeground(GRAY);
+                t1.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
+                t2.setBorder(new MatteBorder(0, 0, 2, 0, NAVY));
+                t2.setForeground(NAVY);
+                t2.setFont(new Font("맑은 고딕", Font.BOLD, 12));
+                cardLayout.show(stackPanel, "notice");
+                bodyPanel.removeAll();
+                bodyPanel.add(left, BorderLayout.WEST);
+                bodyPanel.add(noticeList.getDetailPanel(), BorderLayout.CENTER);
+                bodyPanel.revalidate();
+                bodyPanel.repaint();
+            }
+        });
+
         return left;
     }
 
     // ─── 경기 아이템 ─────────────────────────────────────────
-    // 경기 하나를 표시하는 패널 생성 (클릭 시 잔여석 조회)
     private JPanel createGameItem(String[] game, String status) {
         String date = game[0], time = game[1], opp = game[2];
         boolean isAway = status.equals("원정");
@@ -354,7 +309,6 @@ public class MainFrame extends JFrame {
                 new EmptyBorder(10, 14, 10, 14)));
         item.setMaximumSize(new Dimension(Integer.MAX_VALUE, 68));
 
-        // 날짜 박스 (일, 요일)
         JPanel dateBox = new JPanel();
         dateBox.setLayout(new BoxLayout(dateBox, BoxLayout.Y_AXIS));
         dateBox.setBackground(WHITE);
@@ -380,7 +334,6 @@ public class MainFrame extends JFrame {
         dateBox.add(dayL);
         dateBox.add(dowL);
 
-        // 경기 정보 (팀명, 시간, 배지)
         JPanel info = new JPanel();
         info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
         info.setBackground(WHITE);
@@ -405,11 +358,10 @@ public class MainFrame extends JFrame {
             JLabel sb;
             if (status.equals("예매중")) {
                 if (GameSchedule.isOnSiteOnly(date, time)) {
-                    // 경기 시작 3시간 전 이후 → 현장예매 배지
                     sb = createBadge("현장예매", new Color(243,232,255), new Color(109,40,217));
                 } else {
                     sb = createBadge("예매중", new Color(236,253,245), new Color(6,95,70));
-                    badgeMap.put(date, sb); // 배지 갱신을 위해 Map에 저장
+                    badgeMap.put(date, sb);
                 }
             } else {
                 sb = createBadge("오픈예정", new Color(255,251,235), new Color(146,64,14));
@@ -422,7 +374,6 @@ public class MainFrame extends JFrame {
         item.add(dateBox, BorderLayout.WEST);
         item.add(info, BorderLayout.CENTER);
 
-        // wrapper로 감싸서 구분선 추가
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setBackground(WHITE);
         wrapper.setBorder(new MatteBorder(0, 0, 1, 0, new Color(243,244,246)));
@@ -440,17 +391,13 @@ public class MainFrame extends JFrame {
                     setItemBg(wrapper, item, info, badges, dateBox, WHITE);
             }
             @Override public void mouseClicked(MouseEvent e) {
-                // 이전 선택 항목 배경 초기화
                 if (selectedItem != null && selectedItem != wrapper)
                     resetItemColor(selectedItem);
-
-                // 현재 항목 선택 표시 (네이비 왼쪽 테두리 + 배경색)
                 selectedItem = wrapper;
                 wrapper.setBorder(new MatteBorder(0,0,1,0, new Color(229,231,235)));
                 item.setBorder(new CompoundBorder(
                         new MatteBorder(0,3,0,0,NAVY), new EmptyBorder(10,14,10,14)));
                 setAllBg(wrapper, LIGHT_BG);
-
                 selectedGame = game;
                 if (isAway) showAwayMessage(game);
                 else if (GameSchedule.isOnSiteOnly(date, time)) showOnSiteMessage(game);
@@ -461,16 +408,13 @@ public class MainFrame extends JFrame {
         return wrapper;
     }
 
-    // 특정 패널과 자식 패널들의 배경색 변경
     private void setItemBg(JPanel wrapper, JPanel item, JPanel info, JPanel badges, JPanel dateBox, Color c) {
-        wrapper.setBackground(c);
-        item.setBackground(c);
+        wrapper.setBackground(c); item.setBackground(c);
         if (info    != null) info.setBackground(c);
         if (badges  != null) badges.setBackground(c);
         if (dateBox != null) dateBox.setBackground(c);
     }
 
-    // 선택 해제 시 항목 배경/테두리 원래대로 복원
     private void resetItemColor(JPanel wrapper) {
         setAllBg(wrapper, WHITE);
         wrapper.setBorder(new MatteBorder(0,0,1,0, new Color(243,244,246)));
@@ -481,7 +425,6 @@ public class MainFrame extends JFrame {
         }
     }
 
-    // 컨테이너와 모든 하위 컴포넌트 배경색 일괄 변경 (재귀)
     private void setAllBg(Container c, Color color) {
         c.setBackground(color);
         for (Component comp : c.getComponents()) {
@@ -495,7 +438,6 @@ public class MainFrame extends JFrame {
         right.setBackground(BG);
         right.setBorder(new EmptyBorder(16, 18, 16, 18));
 
-        // 상단 카드 3개 (오늘경기 / 다음예매오픈 / 다음이벤트)
         JPanel topCards = new JPanel(new GridLayout(1, 3, 10, 0));
         topCards.setBackground(BG);
         topCards.setPreferredSize(new Dimension(0, 92));
@@ -505,7 +447,6 @@ public class MainFrame extends JFrame {
         topCards.add(createCountdownCard("다음 이벤트", "D-15", "5/24 클래식 유니폼", true));
         right.add(topCards, BorderLayout.NORTH);
 
-        // 잔여석 표시 영역 (경기 선택 전 안내 문구)
         JPanel guide = new JPanel(new GridBagLayout());
         guide.setBackground(WHITE);
         JLabel gl = new JLabel("좌측에서 경기를 선택하세요");
@@ -518,7 +459,6 @@ public class MainFrame extends JFrame {
         seatScroll.getVerticalScrollBar().setUnitIncrement(12);
         right.add(seatScroll, BorderLayout.CENTER);
 
-        // 하단 바 (갱신 시간 + 찜하기 버튼)
         JPanel bottom = new JPanel(new BorderLayout());
         bottom.setBackground(WHITE);
         bottom.setBorder(new CompoundBorder(
@@ -536,8 +476,6 @@ public class MainFrame extends JFrame {
         wishBtn.setBackground(WHITE);
         wishBtn.setBorder(new LineBorder(new Color(229,231,235)));
         wishBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-
-        // 찜하기 버튼 클릭: 찜 추가/해제 토글
         wishBtn.addActionListener(e -> {
             if (selectedGame == null) {
                 JOptionPane.showMessageDialog(this, "경기를 먼저 선택해주세요.", "알림", JOptionPane.INFORMATION_MESSAGE);
@@ -559,13 +497,11 @@ public class MainFrame extends JFrame {
         return right;
     }
 
-    // ─── 안내 메시지 패널 ────────────────────────────────────
-    // 원정/현장예매 선택 시 중앙에 안내 메시지 표시
+    // ─── 안내 메시지 ─────────────────────────────────────────
     private void showAwayMessage(String[] game) {
         if (autoRefreshTimer != null) { autoRefreshTimer.cancel(); autoRefreshTimer = null; }
         String mo = game[0].substring(4,6), dy = game[0].substring(6,8);
-        seatScroll.setViewportView(buildMessagePanel(
-                mo+"/"+dy+" vs "+game[2], null,
+        seatScroll.setViewportView(buildMessagePanel(mo+"/"+dy+" vs "+game[2], null,
                 "✈", "원정 경기입니다", "원정 경기는 잔여석 정보를 제공하지 않습니다."));
         lastUpdateLabel.setText("원정 경기 · 잔여석 정보 없음");
     }
@@ -573,8 +509,7 @@ public class MainFrame extends JFrame {
     private void showOnSiteMessage(String[] game) {
         if (autoRefreshTimer != null) { autoRefreshTimer.cancel(); autoRefreshTimer = null; }
         String mo = game[0].substring(4,6), dy = game[0].substring(6,8);
-        seatScroll.setViewportView(buildMessagePanel(
-                mo+"/"+dy+" vs "+game[2], null,
+        seatScroll.setViewportView(buildMessagePanel(mo+"/"+dy+" vs "+game[2], null,
                 "🎟", "현장 예매만 가능합니다", "경기 시작 3시간 전부터 온라인 예매가 마감됩니다."));
         lastUpdateLabel.setText("현장 예매 전환 · 온라인 예매 마감");
     }
@@ -615,30 +550,21 @@ public class MainFrame extends JFrame {
     }
 
     // ─── 잔여석 로드 & 갱신 ──────────────────────────────────
-    // 경기 클릭 시 즉시 조회 후 15초마다 자동 갱신
     private void loadSeatData(String[] game) {
         if (autoRefreshTimer != null) autoRefreshTimer.cancel();
         updateSeatPanel(game);
-
-        // 15초마다 자동 갱신 타이머 설정
         autoRefreshTimer = new Timer();
         autoRefreshTimer.schedule(new TimerTask() {
-            @Override public void run() {
-                SwingUtilities.invokeLater(() -> updateSeatPanel(game));
-            }
+            @Override public void run() { SwingUtilities.invokeLater(() -> updateSeatPanel(game)); }
         }, 15000, 15000);
 
-        // 찜 여부에 따라 버튼 텍스트/색상 갱신
         if (WishManager.isWished(game[0])) {
-            wishBtn.setText("♥  찜 완료!");
-            wishBtn.setForeground(RED);
+            wishBtn.setText("♥  찜 완료!"); wishBtn.setForeground(RED);
         } else {
-            wishBtn.setText("♥  이 경기 찜하기");
-            wishBtn.setForeground(NAVY);
+            wishBtn.setText("♥  이 경기 찜하기"); wishBtn.setForeground(NAVY);
         }
     }
 
-    // 잔여석 패널 갱신 (서버에서 데이터 가져와서 표시)
     private void updateSeatPanel(String[] game) {
         String date=game[0], time=game[1], opp=game[2], cd=game[3];
         String mo=date.substring(4,6), dy=date.substring(6,8);
@@ -654,7 +580,6 @@ public class MainFrame extends JFrame {
             if (seats == null || seats.isEmpty()) {
                 panel.add(centerMsg("데이터를 불러올 수 없습니다"), BorderLayout.CENTER);
             } else {
-                // 휠체어석 제외 전부 0석이면 매진 배지로 변경
                 boolean sold = seats.stream()
                         .filter(s -> !s.getName().contains("휠체어"))
                         .allMatch(s -> s.getRemain() == 0);
@@ -675,7 +600,6 @@ public class MainFrame extends JFrame {
         lastUpdateLabel.setText("마지막 갱신 " + now + " · 15초마다 자동 갱신");
     }
 
-    // 잔여석 패널 헤더 (제목 + 새로고침 버튼)
     private JPanel createSeatHeader(String title, String[] game) {
         JPanel h = new JPanel(new BorderLayout());
         h.setBackground(WHITE);
@@ -713,7 +637,6 @@ public class MainFrame extends JFrame {
         return h;
     }
 
-    // 중앙 안내 메시지 패널
     private JPanel centerMsg(String text) {
         JPanel p = new JPanel(new GridBagLayout());
         p.setBackground(WHITE);
@@ -725,7 +648,6 @@ public class MainFrame extends JFrame {
     }
 
     // ─── 좌석 행 ─────────────────────────────────────────────
-    // 구역명, 잔여석 바 차트, 잔여석 숫자로 구성된 행
     private JPanel createSeatRow(SeatInfo seat) {
         JPanel row = new JPanel(new BorderLayout());
         row.setBackground(WHITE);
@@ -734,7 +656,6 @@ public class MainFrame extends JFrame {
                 new EmptyBorder(9,18,9,18)));
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
 
-        // 구역 색상 점
         JPanel dot = new JPanel();
         dot.setBackground(getZoneColor(seat.getName()));
         dot.setPreferredSize(new Dimension(9,9));
@@ -747,7 +668,6 @@ public class MainFrame extends JFrame {
         name.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
         name.setForeground(new Color(55,65,81));
 
-        // 잔여석 바 차트 + 숫자
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         right.setBackground(WHITE);
 
@@ -760,7 +680,6 @@ public class MainFrame extends JFrame {
         barBg.setPreferredSize(new Dimension(80, 5));
         barBg.setBackground(new Color(243,244,246));
 
-        // 최대 300석 기준으로 바 너비 계산
         int fillW = remain == 0 ? 0 : Math.min(80, (remain * 80 / 300));
         JPanel fill = new JPanel();
         fill.setBackground(barColor);
@@ -812,14 +731,11 @@ public class MainFrame extends JFrame {
     }
 
     // ─── 상단 카드 ───────────────────────────────────────────
-    // 오늘 경기 정보 카드
     private JPanel createTodayCard() {
         JPanel card = new JPanel();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         card.setBackground(NAVY);
-        card.setBorder(new CompoundBorder(
-                new LineBorder(NAVY,1,true),
-                new EmptyBorder(13,16,13,16)));
+        card.setBorder(new CompoundBorder(new LineBorder(NAVY,1,true), new EmptyBorder(13,16,13,16)));
 
         JLabel lbl   = new JLabel("● 오늘 경기 · 2026년 5월 12일");
         lbl.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
@@ -841,14 +757,11 @@ public class MainFrame extends JFrame {
         return card;
     }
 
-    // D-day 카운트다운 카드
     private JPanel createCountdownCard(String label, String value, String sub, boolean red) {
         JPanel card = new JPanel();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         card.setBackground(WHITE);
-        card.setBorder(new CompoundBorder(
-                new LineBorder(new Color(229,231,235),1,true),
-                new EmptyBorder(13,16,13,16)));
+        card.setBorder(new CompoundBorder(new LineBorder(new Color(229,231,235),1,true), new EmptyBorder(13,16,13,16)));
 
         JLabel lbl = new JLabel(label);
         lbl.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
@@ -870,7 +783,7 @@ public class MainFrame extends JFrame {
         return card;
     }
 
-    // ─── 유틸 메서드 ─────────────────────────────────────────
+    // ─── 유틸 ────────────────────────────────────────────────
     private JLabel createSectionLabel(String text) {
         JLabel l = new JLabel(text);
         l.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
@@ -897,7 +810,6 @@ public class MainFrame extends JFrame {
         return b;
     }
 
-    // 구역명으로 색상 반환 (사직야구장 좌석 배치도 기준)
     private Color getZoneColor(String n) {
         if (n.contains("에비뉴엘"))      return new Color(75,75,190);
         if (n.contains("중앙탁자"))      return new Color(216,84,107);
