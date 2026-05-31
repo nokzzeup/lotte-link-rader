@@ -1,0 +1,11 @@
+21|예매|2026 롯데자이언츠 퓨처스리그 6, 7월 예매 안내|https://www.giantsclub.com/html/?pcode=783&bcIdx=2&MODE=V&bidx=158231|2026.06.04|true
+20|예매|2026 롯데자이언츠 퓨처스리그 5월 예매 안내|https://www.giantsclub.com/html/?pcode=783&bcIdx=2&MODE=V&bidx=158196|2026.05.13|true
+19|예매|2026년 롯데자이언츠 6월, 7월 첫주 컬러프라이스 안내|https://www.giantsclub.com/html/?pcode=783&bcIdx=2&MODE=V&bidx=158197|2026.05.14|false
+18|기타|롯데, 롯데GRS와 함께하는 ‘롯데리아 매치데이’|https://www.giantsclub.com/html/?pcode=783&bcIdx=2&MODE=V&bidx=158205|2026.05.21|true
+17|이벤트|5/22(금) 롯데GRS와 함께하는 롯데리아 떼리앙 매치데이|https://www.giantsclub.com/html/?pcode=783&bcIdx=2&MODE=V&bidx=158206|2026.05.21|false
+16|기타|홈페이지 및 티켓예매 정기점검 안내|https://www.giantsclub.com/html/?pcode=783&bcIdx=2&MODE=V&bidx=158207|2026.05.21|true
+15|예매|6/7(일) 경기 스페셜 요금 안내|https://www.giantsclub.com/html/?pcode=783&bcIdx=2&MODE=V&bidx=158208|2026.05.21|true
+14|기타|롯데, 호국보훈의 달 ‘밀리터리 시리즈’ 진행|https://www.giantsclub.com/html/?pcode=783&bcIdx=2&MODE=V&bidx=158209|2026.05.22|true
+13|기타|롯데, 대한출판문화협회와 독서문화 캠페인 업무협약|https://www.giantsclub.com/html/?pcode=783&bcIdx=2&MODE=V&bidx=158212|2026.05.24|true
+12|기타|롯데, 한성모터스와 함께하는 매치데이|https://www.giantsclub.com/html/?pcode=783&bcIdx=2&MODE=V&bidx=158220|2026.05.26|true
+11|공지|26년 5월 롯데자이언츠 육아휴직 대체 재무담당 신입/경력사원 모집|https://www.giantsclub.com/html/?pcode=783&bcIdx=2&MODE=V&bidx=158222|2026.05.28|true

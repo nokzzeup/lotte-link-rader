@@ -93,6 +93,7 @@ public class WishCalendarPanel extends JPanel {
         JPanel calCard = new JPanel(new BorderLayout());
         calCard.setBackground(WHITE);
         calCard.setBorder(new LineBorder(new Color(229, 231, 235), 1, true));
+        calCard.setPreferredSize(new Dimension(0, 500));
 
         // 캘린더 헤더
         JPanel header = new JPanel(new BorderLayout());
@@ -112,15 +113,6 @@ public class WishCalendarPanel extends JPanel {
         JButton prevBtn = createNavBtn("‹");
         JButton nextBtn = createNavBtn("›");
 
-        // 이벤트 관리 버튼
-        JButton eventBtn = new JButton("이벤트 관리");
-        eventBtn.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
-        eventBtn.setForeground(new Color(126, 34, 206));
-        eventBtn.setBackground(WHITE);
-        eventBtn.setBorder(new LineBorder(new Color(126, 34, 206)));
-        eventBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        eventBtn.addActionListener(e -> showEventManageDialog());
-
         prevBtn.addActionListener(e -> {
             currentMonth--;
             if (currentMonth < 0) { currentMonth = 11; currentYear--; }
@@ -132,8 +124,6 @@ public class WishCalendarPanel extends JPanel {
             refreshCalendar();
         });
 
-        navBtns.add(eventBtn);
-        navBtns.add(Box.createHorizontalStrut(4));
         navBtns.add(prevBtn);
         navBtns.add(nextBtn);
         header.add(navBtns, BorderLayout.EAST);
@@ -152,7 +142,7 @@ public class WishCalendarPanel extends JPanel {
             dowPanel.add(dl);
         }
 
-        calendarGrid = new JPanel(new GridLayout(6, 7, 3, 3));
+        calendarGrid = new JPanel(new GridLayout(0, 7, 3, 3));calendarGrid = new JPanel(new GridLayout(0, 7, 3, 3));
         calendarGrid.setBackground(LIGHT_BG);
         calendarGrid.setBorder(new EmptyBorder(4, 12, 12, 12));
 
@@ -324,188 +314,148 @@ public class WishCalendarPanel extends JPanel {
 
     // ─── 팝업 ─────────────────────────────────────────────────
     private void showGamePopup(JPanel anchor, String[] game, String dateKey) {
-        JPopupMenu popup = new JPopupMenu();
-        popup.setBorder(new LineBorder(new Color(229, 231, 235), 1));
-
         boolean isWished = WishManager.isWished(dateKey);
         boolean isAway   = game.length >= 5 && game[4].equals("원정");
         boolean hasCD    = !game[3].isEmpty();
-        String  month    = dateKey.substring(4, 6);
-        String  day      = dateKey.substring(6, 8);
+        boolean isEvent  = isEventGame(dateKey);
 
-        JPanel info = new JPanel();
-        info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
-        info.setBackground(WHITE);
-        info.setBorder(new EmptyBorder(10, 14, 8, 14));
+        String month = dateKey.substring(4, 6);
+        String day   = dateKey.substring(6, 8);
 
-        JLabel title = new JLabel(month + "/" + day + " 롯데 vs " + game[2]);
-        title.setFont(new Font("맑은 고딕", Font.BOLD, 13));
-        title.setForeground(new Color(17, 24, 39));
+        // 요일 계산
+        String[] days = {"일", "월", "화", "수", "목", "금", "토"};
+        Calendar cal = Calendar.getInstance();
+        cal.set(Integer.parseInt(dateKey.substring(0,4)),
+                Integer.parseInt(dateKey.substring(4,6))-1,
+                Integer.parseInt(dateKey.substring(6,8)));
+        String dow = days[cal.get(Calendar.DAY_OF_WEEK)-1];
 
-        JLabel sub = new JLabel(game[1].substring(0,2)+":"+game[1].substring(2) + " · " +
-                (isAway ? "원정" : "사직야구장"));
-        sub.setFont(new Font("맑은 고딕", Font.PLAIN, 11));
-        sub.setForeground(GRAY);
+        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "", true);
+        dialog.setUndecorated(true);
+        dialog.setSize(300, isAway ? 200 : (hasCD ? 240 : 210));
+        dialog.setLocationRelativeTo(anchor);
+        dialog.setLayout(new BorderLayout());
 
-        info.add(title);
-        info.add(Box.createVerticalStrut(3));
-        info.add(sub);
+        // ─── 메인 패널 ────────────────────────────────────────
+        JPanel main = new JPanel();
+        main.setLayout(new BoxLayout(main, BoxLayout.Y_AXIS));
+        main.setBackground(WHITE);
+        main.setBorder(new CompoundBorder(
+                new LineBorder(new Color(229, 231, 235), 1, true),
+                new EmptyBorder(20, 20, 16, 20)));
 
-        JMenuItem infoItem = new JMenuItem();
-        infoItem.setLayout(new BorderLayout());
-        infoItem.add(info);
-        infoItem.setEnabled(false);
-        popup.add(infoItem);
-        popup.addSeparator();
+        // 헤더 (경기 정보 + X 버튼)
+        JPanel headerRow = new JPanel(new BorderLayout());
+        headerRow.setBackground(WHITE);
+        headerRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        headerRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
 
-        JMenuItem wishItem = new JMenuItem(isWished ? "★ 찜 해제" : "☆ 찜하기");
-        wishItem.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
-        wishItem.setForeground(isWished ? GRAY : RED);
-        wishItem.addActionListener(e -> {
+        JLabel header = new JLabel("경기 정보");
+        header.setFont(new Font("맑은 고딕", Font.BOLD, 11));
+        header.setForeground(GRAY);
+
+        JButton closeBtn = new JButton("X");
+        closeBtn.setFont(new Font("맑은 고딕", Font.PLAIN, 11));
+        closeBtn.setForeground(GRAY);
+        closeBtn.setBackground(WHITE);
+        closeBtn.setBorderPainted(false);
+        closeBtn.setContentAreaFilled(false);
+        closeBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        closeBtn.addActionListener(e -> dialog.dispose());
+
+        headerRow.add(header, BorderLayout.WEST);
+        headerRow.add(closeBtn, BorderLayout.EAST);
+
+        // 날짜
+        JLabel dateLabel = new JLabel(
+                Integer.parseInt(month) + "월 " + Integer.parseInt(day) + "일 (" + dow + ")  " +
+                "롯데 vs " + game[2]);
+        dateLabel.setFont(new Font("맑은 고딕", Font.BOLD, 16));
+        dateLabel.setForeground(new Color(17, 24, 39));
+        dateLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        // 시간 & 장소
+        String venue = isAway ? "원정 경기" : "사직야구장";
+        JLabel timeLabel = new JLabel(game[1].substring(0,2) + ":" + game[1].substring(2) + "   " + venue);
+        timeLabel.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
+        timeLabel.setForeground(GRAY);
+        timeLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        // 이벤트 배지
+        if (isEvent) {
+            JLabel evBadge = new JLabel("이벤트 경기");
+            evBadge.setFont(new Font("맑은 고딕", Font.BOLD, 10));
+            evBadge.setForeground(new Color(126, 34, 206));
+            evBadge.setBackground(new Color(253, 244, 255));
+            evBadge.setOpaque(true);
+            evBadge.setBorder(new EmptyBorder(2, 8, 2, 8));
+            evBadge.setAlignmentX(Component.LEFT_ALIGNMENT);
+            main.add(headerRow);
+            main.add(Box.createVerticalStrut(10));
+            main.add(dateLabel);
+            main.add(Box.createVerticalStrut(4));
+            main.add(timeLabel);
+            main.add(Box.createVerticalStrut(6));
+            main.add(evBadge);
+        } else {
+            main.add(headerRow);
+            main.add(Box.createVerticalStrut(10));
+            main.add(dateLabel);
+            main.add(Box.createVerticalStrut(4));
+            main.add(timeLabel);
+        }
+
+        main.add(Box.createVerticalStrut(16));
+
+        // ─── 찜하기 버튼 ─────────────────────────────────────
+        JButton wishBtn = new JButton(isWished ? "♥  찜 해제" : "♥  찜하기");
+        wishBtn.setFont(new Font("맑은 고딕", Font.BOLD, 13));
+        wishBtn.setForeground(WHITE);
+        wishBtn.setBackground(isWished ? GRAY : RED);
+        wishBtn.setOpaque(true);
+        wishBtn.setBorderPainted(false);
+        wishBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        wishBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        wishBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        wishBtn.addActionListener(e -> {
             if (isWished) WishManager.remove(dateKey);
             else          WishManager.add(game);
             refreshCalendar();
+            dialog.dispose();
         });
-        popup.add(wishItem);
+        main.add(wishBtn);
 
-        // 예매창 열기 (홈경기 + CD 있을 때)
+        // ─── 예매하기 버튼 ────────────────────────────────────
         if (!isAway && hasCD) {
-            JMenuItem bookItem = new JMenuItem("예매하기 →");
-            bookItem.setFont(new Font("맑은 고딕", Font.BOLD, 12));
-            bookItem.setForeground(new Color(6, 95, 70));
-            bookItem.addActionListener(e -> {
+            main.add(Box.createVerticalStrut(8));
+            JButton bookBtn = new JButton("예매하기 →");
+            bookBtn.setFont(new Font("맑은 고딕", Font.PLAIN, 13));
+            bookBtn.setForeground(NAVY);
+            bookBtn.setBackground(WHITE);
+            bookBtn.setOpaque(true);
+            bookBtn.setBorder(new LineBorder(new Color(229, 231, 235)));
+            bookBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+            bookBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+            bookBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            bookBtn.addActionListener(e -> {
                 try { Desktop.getDesktop().browse(new java.net.URI("https://ticket.giantsclub.com")); }
                 catch (Exception ex) { JOptionPane.showMessageDialog(null, "브라우저를 열 수 없습니다.", "오류", JOptionPane.ERROR_MESSAGE); }
+                dialog.dispose();
             });
-            popup.add(bookItem);
+            main.add(bookBtn);
         }
 
-        popup.show(anchor, anchor.getWidth() / 2, anchor.getHeight() / 2);
+        dialog.add(main, BorderLayout.CENTER);
+
+        // 다이얼로그 바깥 클릭 시 닫기
+        dialog.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) { dialog.dispose(); }
+        });
+
+        dialog.setVisible(true);
     }
 
     // ─── 이벤트 관리 다이얼로그 ──────────────────────────────
-    private void showEventManageDialog() {
-        String pw = JOptionPane.showInputDialog(this, "관리자 비밀번호:", "이벤트 관리", JOptionPane.PLAIN_MESSAGE);
-        if (!ADMIN_PASSWORD.equals(pw)) {
-            if (pw != null) JOptionPane.showMessageDialog(this, "비밀번호가 틀렸습니다.", "오류", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "이벤트 경기 관리", true);
-        dialog.setSize(380, 420);
-        dialog.setLocationRelativeTo(this);
-        dialog.setLayout(new BorderLayout());
-
-        JPanel main = new JPanel(new BorderLayout());
-        main.setBackground(WHITE);
-        main.setBorder(new EmptyBorder(16, 16, 16, 16));
-
-        // 현재 이벤트 목록
-        JLabel listTitle = new JLabel("등록된 이벤트 경기");
-        listTitle.setFont(new Font("맑은 고딕", Font.BOLD, 12));
-        listTitle.setForeground(new Color(55, 65, 81));
-        listTitle.setBorder(new EmptyBorder(0, 0, 8, 0));
-
-        DefaultListModel<String> listModel = new DefaultListModel<>();
-        for (String d : new TreeSet<>(eventDates)) {
-            String display = d.substring(0, 4) + "." + d.substring(4, 6) + "." + d.substring(6, 8);
-            listModel.addElement(display + " (" + d + ")");
-        }
-
-        JList<String> eventList = new JList<>(listModel);
-        eventList.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
-        eventList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        JScrollPane listScroll = new JScrollPane(eventList);
-        listScroll.setBorder(new LineBorder(new Color(229, 231, 235)));
-        listScroll.setPreferredSize(new Dimension(0, 200));
-
-        // 삭제 버튼
-        JButton delBtn = new JButton("선택 삭제");
-        delBtn.setFont(new Font("맑은 고딕", Font.PLAIN, 11));
-        delBtn.setForeground(RED);
-        delBtn.setBackground(WHITE);
-        delBtn.setBorder(new LineBorder(new Color(229, 231, 235)));
-        delBtn.addActionListener(e -> {
-            String selected = eventList.getSelectedValue();
-            if (selected == null) return;
-            String dateKey = selected.replaceAll(".*\\((.*)\\)", "$1");
-            eventDates.remove(dateKey);
-            saveEventDates();
-            listModel.removeElement(selected);
-            refreshCalendar();
-        });
-
-        // 추가 영역
-        JLabel addTitle = new JLabel("이벤트 경기 추가");
-        addTitle.setFont(new Font("맑은 고딕", Font.BOLD, 12));
-        addTitle.setForeground(new Color(55, 65, 81));
-        addTitle.setBorder(new EmptyBorder(12, 0, 8, 0));
-
-        // 홈경기 드롭다운
-        List<String[]> homeGames = new ArrayList<>();
-        List<String> gameOptions = new ArrayList<>();
-        for (String[] g : GameSchedule.getAllGames()) {
-            if (g.length >= 5 && g[4].equals("홈")) {
-                homeGames.add(g);
-                gameOptions.add(g[0].substring(4,6) + "/" + g[0].substring(6,8) + " vs " + g[2]);
-            }
-        }
-
-        JComboBox<String> gameBox = new JComboBox<>(gameOptions.toArray(new String[0]));
-        gameBox.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
-
-        JButton addBtn = new JButton("추가");
-        addBtn.setFont(new Font("맑은 고딕", Font.BOLD, 11));
-        addBtn.setForeground(WHITE);
-        addBtn.setBackground(new Color(126, 34, 206));
-        addBtn.setOpaque(true);
-        addBtn.setBorderPainted(false);
-        addBtn.addActionListener(e -> {
-            int idx = gameBox.getSelectedIndex();
-            if (idx < 0) return;
-            String dateKey = homeGames.get(idx)[0];
-            if (eventDates.contains(dateKey)) {
-                JOptionPane.showMessageDialog(dialog, "이미 등록된 이벤트 경기입니다.", "알림", JOptionPane.INFORMATION_MESSAGE);
-                return;
-            }
-            eventDates.add(dateKey);
-            saveEventDates();
-            String display = dateKey.substring(0,4) + "." + dateKey.substring(4,6) + "." + dateKey.substring(6,8);
-            listModel.addElement(display + " (" + dateKey + ")");
-            refreshCalendar();
-        });
-
-        JPanel addRow = new JPanel(new BorderLayout(6, 0));
-        addRow.setBackground(WHITE);
-        addRow.add(gameBox, BorderLayout.CENTER);
-        addRow.add(addBtn, BorderLayout.EAST);
-
-        JPanel listPanel = new JPanel(new BorderLayout());
-        listPanel.setBackground(WHITE);
-        listPanel.add(listTitle, BorderLayout.NORTH);
-        listPanel.add(listScroll, BorderLayout.CENTER);
-        listPanel.add(delBtn, BorderLayout.SOUTH);
-
-        JPanel addPanel = new JPanel(new BorderLayout());
-        addPanel.setBackground(WHITE);
-        addPanel.add(addTitle, BorderLayout.NORTH);
-        addPanel.add(addRow, BorderLayout.CENTER);
-
-        main.add(listPanel, BorderLayout.CENTER);
-        main.add(addPanel, BorderLayout.SOUTH);
-
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        btnPanel.setBackground(LIGHT_BG);
-        btnPanel.setBorder(new MatteBorder(1, 0, 0, 0, new Color(229, 231, 235)));
-        JButton closeBtn = new JButton("닫기");
-        closeBtn.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
-        closeBtn.addActionListener(e -> dialog.dispose());
-        btnPanel.add(closeBtn);
-
-        dialog.add(main, BorderLayout.CENTER);
-        dialog.add(btnPanel, BorderLayout.SOUTH);
-        dialog.setVisible(true);
-    }
 
     // ─── 우측: 찜 목록 + 통계 ────────────────────────────────
     private JPanel createRightPanel() {

@@ -83,11 +83,9 @@ public class MainFrame extends JFrame {
             tickerTimer.schedule(new TimerTask() {
                 @Override public void run() {
                     if (tickerMessages.isEmpty()) return;
-                    // 취소표 알림 중이면 순환 중지
-                    if (tickerLabel.getForeground().equals(new Color(255, 180, 180))) return;
                     tickerIndex = (tickerIndex + 1) % tickerMessages.size();
                     SwingUtilities.invokeLater(() ->
-                        tickerLabel.setText(tickerMessages.get(tickerIndex))
+                            tickerLabel.setText(tickerMessages.get(tickerIndex))
                     );
                 }
             }, 5000, 5000);
@@ -95,14 +93,302 @@ public class MainFrame extends JFrame {
     }
 
     // ─── 찜한 경기만 백그라운드 조회 (앱 시작 시 실행) ─────
+    // ─── 취소표 알림 팝업 (우측 하단) ───────────────────────
+    // ─── 관리자 로그인 ───────────────────────────────────────
+    private static final String ADMIN_PASSWORD = "admin1234";
+
+    private void showAdminLogin() {
+        JPasswordField pwField = new JPasswordField();
+        int result = JOptionPane.showConfirmDialog(this, pwField,
+                "관리자 비밀번호", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result != JOptionPane.OK_OPTION) return;
+        String pw = new String(pwField.getPassword());
+        if (!ADMIN_PASSWORD.equals(pw)) {
+            JOptionPane.showMessageDialog(this, "비밀번호가 틀렸습니다.", "오류", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        showAdminPanel();
+    }
+
+    private void showAdminPanel() {
+        JDialog dialog = new JDialog(this, "관리자 패널", true);
+        dialog.setSize(420, 500);
+        dialog.setLocationRelativeTo(this);
+        dialog.setLayout(new BorderLayout());
+
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
+
+        // ─── 탭 1: 이벤트 관리 ───────────────────────────────
+        JPanel eventPanel = new JPanel(new BorderLayout());
+        eventPanel.setBackground(WHITE);
+        eventPanel.setBorder(new EmptyBorder(16, 16, 16, 16));
+
+        JLabel eventListTitle = new JLabel("등록된 이벤트 경기");
+        eventListTitle.setFont(new Font("맑은 고딕", Font.BOLD, 12));
+        eventListTitle.setForeground(new Color(55, 65, 81));
+        eventListTitle.setBorder(new EmptyBorder(0, 0, 8, 0));
+
+        // 이벤트 날짜 로드
+        Set<String> eventDates = new TreeSet<>();
+        try {
+            java.io.BufferedReader br = new java.io.BufferedReader(
+                new java.io.InputStreamReader(new java.io.FileInputStream("events.txt"), "UTF-8"));
+            String line;
+            while ((line = br.readLine()) != null) { line = line.trim(); if (!line.isEmpty()) eventDates.add(line); }
+            br.close();
+        } catch (Exception ignored) {}
+
+        DefaultListModel<String> listModel = new DefaultListModel<>();
+        for (String d : eventDates) {
+            listModel.addElement(d.substring(0,4)+"."+d.substring(4,6)+"."+d.substring(6,8)+" ("+d+")");
+        }
+
+        JList<String> eventList = new JList<>(listModel);
+        eventList.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
+        eventList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        JScrollPane listScroll = new JScrollPane(eventList);
+        listScroll.setBorder(new LineBorder(new Color(229, 231, 235)));
+
+        JButton delBtn = new JButton("선택 삭제");
+        delBtn.setFont(new Font("맑은 고딕", Font.PLAIN, 11));
+        delBtn.setForeground(RED);
+        delBtn.setBackground(WHITE);
+        delBtn.setBorder(new LineBorder(new Color(229, 231, 235)));
+        delBtn.addActionListener(e -> {
+            String selected = eventList.getSelectedValue();
+            if (selected == null) return;
+            String dateKey = selected.replaceAll(".*\\((.*)\\)", "$1");
+            eventDates.remove(dateKey);
+            saveEventDates(eventDates);
+            listModel.removeElement(selected);
+        });
+
+        JLabel addTitle = new JLabel("이벤트 경기 추가");
+        addTitle.setFont(new Font("맑은 고딕", Font.BOLD, 12));
+        addTitle.setForeground(new Color(55, 65, 81));
+        addTitle.setBorder(new EmptyBorder(12, 0, 8, 0));
+
+        List<String[]> homeGames = new ArrayList<>();
+        List<String> gameOptions = new ArrayList<>();
+        for (String[] g : GameSchedule.getAllGames()) {
+            if (g.length >= 5 && g[4].equals("홈")) {
+                homeGames.add(g);
+                gameOptions.add(g[0].substring(4,6)+"/"+g[0].substring(6,8)+" vs "+g[2]);
+            }
+        }
+
+        JComboBox<String> gameBox = new JComboBox<>(gameOptions.toArray(new String[0]));
+        gameBox.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
+
+        JButton addBtn = new JButton("추가");
+        addBtn.setFont(new Font("맑은 고딕", Font.BOLD, 11));
+        addBtn.setForeground(WHITE);
+        addBtn.setBackground(new Color(126, 34, 206));
+        addBtn.setOpaque(true);
+        addBtn.setBorderPainted(false);
+        addBtn.addActionListener(e -> {
+            int idx = gameBox.getSelectedIndex();
+            if (idx < 0) return;
+            String dateKey = homeGames.get(idx)[0];
+            if (eventDates.contains(dateKey)) {
+                JOptionPane.showMessageDialog(dialog, "이미 등록된 이벤트입니다.", "알림", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+            eventDates.add(dateKey);
+            saveEventDates(eventDates);
+            String display = dateKey.substring(0,4)+"."+dateKey.substring(4,6)+"."+dateKey.substring(6,8);
+            listModel.addElement(display+" ("+dateKey+")");
+        });
+
+        JPanel addRow = new JPanel(new BorderLayout(6, 0));
+        addRow.setBackground(WHITE);
+        addRow.add(gameBox, BorderLayout.CENTER);
+        addRow.add(addBtn, BorderLayout.EAST);
+
+        JPanel listPanel = new JPanel(new BorderLayout());
+        listPanel.setBackground(WHITE);
+        listPanel.add(eventListTitle, BorderLayout.NORTH);
+        listPanel.add(listScroll, BorderLayout.CENTER);
+        listPanel.add(delBtn, BorderLayout.SOUTH);
+
+        JPanel addPanel = new JPanel(new BorderLayout());
+        addPanel.setBackground(WHITE);
+        addPanel.add(addTitle, BorderLayout.NORTH);
+        addPanel.add(addRow, BorderLayout.CENTER);
+
+        eventPanel.add(listPanel, BorderLayout.CENTER);
+        eventPanel.add(addPanel, BorderLayout.SOUTH);
+        tabs.addTab("이벤트 관리", eventPanel);
+
+        // ─── 탭 2: 공지 추가 ─────────────────────────────────
+        JPanel noticePanel = new JPanel();
+        noticePanel.setLayout(new BoxLayout(noticePanel, BoxLayout.Y_AXIS));
+        noticePanel.setBackground(WHITE);
+        noticePanel.setBorder(new EmptyBorder(16, 16, 16, 16));
+
+        JLabel tagL = new JLabel("태그");
+        tagL.setFont(new Font("맑은 고딕", Font.BOLD, 12));
+        tagL.setForeground(new Color(55, 65, 81));
+        tagL.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JComboBox<String> tagBox = new JComboBox<>(new String[]{"이벤트", "예매", "공지", "기타"});
+        tagBox.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
+        tagBox.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+
+        JLabel titleL = new JLabel("제목");
+        titleL.setFont(new Font("맑은 고딕", Font.BOLD, 12));
+        titleL.setForeground(new Color(55, 65, 81));
+        titleL.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JTextField titleField = new JTextField();
+        titleField.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
+        titleField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
+        titleField.setBorder(new CompoundBorder(
+            new LineBorder(new Color(229, 231, 235)), new EmptyBorder(6, 8, 6, 8)));
+
+        JLabel contentL = new JLabel("내용");
+        contentL.setFont(new Font("맑은 고딕", Font.BOLD, 12));
+        contentL.setForeground(new Color(55, 65, 81));
+        contentL.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JTextArea contentArea = new JTextArea(5, 20);
+        contentArea.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
+        contentArea.setLineWrap(true);
+        contentArea.setWrapStyleWord(true);
+        JScrollPane contentScroll = new JScrollPane(contentArea);
+        contentScroll.setBorder(new LineBorder(new Color(229, 231, 235)));
+        contentScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
+        contentScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 120));
+
+        JButton saveNoticeBtn = new JButton("공지 추가");
+        saveNoticeBtn.setFont(new Font("맑은 고딕", Font.BOLD, 12));
+        saveNoticeBtn.setForeground(WHITE);
+        saveNoticeBtn.setBackground(NAVY);
+        saveNoticeBtn.setOpaque(true);
+        saveNoticeBtn.setBorderPainted(false);
+        saveNoticeBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        saveNoticeBtn.addActionListener(e -> {
+            String tag = (String) tagBox.getSelectedItem();
+            String title = titleField.getText().trim();
+            String content = contentArea.getText().trim();
+            if (title.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "제목을 입력해주세요.", "입력 오류", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            NoticeManager.add(tag, title, content);
+            titleField.setText("");
+            contentArea.setText("");
+            JOptionPane.showMessageDialog(dialog, "공지가 추가됐습니다.", "완료", JOptionPane.INFORMATION_MESSAGE);
+        });
+
+        noticePanel.add(tagL); noticePanel.add(Box.createVerticalStrut(4)); noticePanel.add(tagBox);
+        noticePanel.add(Box.createVerticalStrut(12));
+        noticePanel.add(titleL); noticePanel.add(Box.createVerticalStrut(4)); noticePanel.add(titleField);
+        noticePanel.add(Box.createVerticalStrut(12));
+        noticePanel.add(contentL); noticePanel.add(Box.createVerticalStrut(4)); noticePanel.add(contentScroll);
+        noticePanel.add(Box.createVerticalStrut(12));
+        noticePanel.add(saveNoticeBtn);
+        tabs.addTab("공지 추가", noticePanel);
+
+        dialog.add(tabs, BorderLayout.CENTER);
+
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        btnPanel.setBackground(new Color(243, 244, 246));
+        btnPanel.setBorder(new MatteBorder(1, 0, 0, 0, new Color(229, 231, 235)));
+        JButton closeBtn = new JButton("닫기");
+        closeBtn.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
+        closeBtn.addActionListener(e -> dialog.dispose());
+        btnPanel.add(closeBtn);
+        dialog.add(btnPanel, BorderLayout.SOUTH);
+
+        dialog.setVisible(true);
+    }
+
+    private void saveEventDates(Set<String> eventDates) {
+        try {
+            java.io.PrintWriter pw = new java.io.PrintWriter(
+                new java.io.OutputStreamWriter(new java.io.FileOutputStream("events.txt"), "UTF-8"));
+            for (String d : eventDates) pw.println(d);
+            pw.close();
+        } catch (Exception ignored) {}
+    }
+
+    private void showCancellationPopup(String date, String opp, int remain) {
+        JWindow popup = new JWindow(this);
+        popup.setLayout(new BorderLayout());
+
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(NAVY);
+        panel.setBorder(new EmptyBorder(22, 26, 22, 26));
+
+        JLabel title = new JLabel("취소표 발생!");
+        title.setFont(new Font("맑은 고딕", Font.BOLD, 18));
+        title.setForeground(new Color(255, 100, 100));
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel game = new JLabel(date.substring(4,6) + "/" + date.substring(6,8) + " vs " + opp);
+        game.setFont(new Font("맑은 고딕", Font.BOLD, 16));
+        game.setForeground(Color.WHITE);
+        game.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel seats = new JLabel("잔여석 " + remain + "석 확인됨");
+        seats.setFont(new Font("맑은 고딕", Font.PLAIN, 14));
+        seats.setForeground(new Color(180, 200, 230));
+        seats.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel hint = new JLabel("클릭하여 닫기");
+        hint.setFont(new Font("맑은 고딕", Font.PLAIN, 11));
+        hint.setForeground(new Color(130, 150, 180));
+        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        panel.add(title);
+        panel.add(Box.createVerticalStrut(8));
+        panel.add(game);
+        panel.add(Box.createVerticalStrut(4));
+        panel.add(seats);
+        panel.add(Box.createVerticalStrut(8));
+        panel.add(hint);
+
+        popup.add(panel, BorderLayout.CENTER);
+        popup.pack();
+
+        Point frameLocation = getLocation();
+        Dimension frameSize = getSize();
+        popup.setLocation(
+                frameLocation.x + frameSize.width - popup.getWidth() - 20,
+                frameLocation.y + frameSize.height - popup.getHeight() - 60
+        );
+
+        popup.setAlwaysOnTop(true);
+        popup.setVisible(true);
+
+        // 클릭 시 닫기
+        panel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        panel.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) { popup.dispose(); }
+        });
+
+        // 5초 후 자동 닫기
+        new Timer().schedule(new TimerTask() {
+            @Override public void run() {
+                SwingUtilities.invokeLater(popup::dispose);
+            }
+        }, 5000);
+    }
+
     private void startWishRefresh() {
         Timer wishRefreshTimer = new Timer();
         wishRefreshTimer.schedule(new TimerTask() {
             @Override public void run() {
                 List<String[]> wished = WishManager.getAll();
-                for (String[] game : wished) {
+                for (int wi = 0; wi < wished.size(); wi++) {
+                    String[] game = wished.get(wi);
                     String date = game[0], time = game[1], cd = game[3];
                     if (cd.isEmpty()) continue;
+                    // 경기마다 3초 간격으로 요청 (서버 차단 방지)
+                    try { Thread.sleep(wi * 3000L); } catch (Exception ignored) {}
                     new Thread(() -> {
                         List<SeatInfo> seats = SeatEngine.fetch(date, time, cd);
                         if (seats == null) return;
@@ -113,24 +399,25 @@ public class MainFrame extends JFrame {
                                 .sum();
 
                         Integer prev = prevRemainMap.get(date);
-                        if (prev != null && prev == 0 && totalRemain > 0) {
+                        if (prev == null) {
+                            // 첫 조회 시 현재값 저장
+                            prevRemainMap.put(date, totalRemain);
+                        } else if (prev == 0 && totalRemain > 0) {
+                            // 취소표 감지!
+                            final int remain = totalRemain;
                             SwingUtilities.invokeLater(() -> {
-                                if (tickerLabel != null) {
-                                    tickerLabel.setText("  [취소표] " + date.substring(4,6) + "/" +
-                                            date.substring(6,8) + " vs " + game[2] +
-                                            " 취소표 " + totalRemain + "석 발생!");
-                                    tickerLabel.setForeground(new Color(255, 180, 180));
-                                }
-                                // 배지도 업데이트 (경기일정 탭에 있을 경우)
+                                showCancellationPopup(date, game[2], remain);
                                 JLabel badge = badgeMap.get(date);
                                 if (badge != null) {
-                                    badge.setText("+" + totalRemain + "석");
+                                    badge.setText("+" + remain + "석");
                                     badge.setBackground(new Color(254, 226, 226));
                                     badge.setForeground(RED);
                                 }
                             });
+                            prevRemainMap.put(date, totalRemain);
+                        } else {
+                            prevRemainMap.put(date, totalRemain);
                         }
-                        prevRemainMap.put(date, totalRemain);
                     }).start();
                 }
             }
@@ -173,21 +460,21 @@ public class MainFrame extends JFrame {
 
                     // 취소표 감지: 이전값 0 → 현재값 n
                     Integer prev = prevRemainMap.get(date);
-                    if (prev != null && prev == 0 && totalRemain > 0) {
+                    if (prev == null) {
+                        // 첫 조회 시 현재값 저장
+                        prevRemainMap.put(date, totalRemain);
+                        if (sold) setSoldOut(badge); else setOnSale(badge);
+                    } else if (prev == 0 && totalRemain > 0) {
+                        // 취소표 감지!
                         badge.setText("+" + totalRemain + "석");
                         badge.setBackground(new Color(254, 226, 226));
                         badge.setForeground(RED);
-                        if (tickerLabel != null) {
-                            tickerLabel.setText("  [취소표] " + date.substring(4,6) + "/" +
-                                    date.substring(6,8) + " vs " + opp +
-                                    " 취소표 " + totalRemain + "석 발생!");
-                            tickerLabel.setForeground(new Color(255, 180, 180));
-                        }
+                        showCancellationPopup(date, opp, totalRemain);
+                        prevRemainMap.put(date, totalRemain);
                     } else {
                         if (sold) setSoldOut(badge); else setOnSale(badge);
+                        prevRemainMap.put(date, totalRemain);
                     }
-
-                    prevRemainMap.put(date, totalRemain);
                 });
             }).start();
         }
@@ -209,6 +496,12 @@ public class MainFrame extends JFrame {
         JLabel logo = new JLabel("Lotte-Link Radar");
         logo.setForeground(WHITE);
         logo.setFont(new Font("맑은 고딕", Font.BOLD, 17));
+        logo.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        logo.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) {
+                showAdminLogin();
+            }
+        });
         topBar.add(logo, BorderLayout.WEST);
 
         JPanel ticker = new JPanel(new BorderLayout());
@@ -242,7 +535,7 @@ public class MainFrame extends JFrame {
         for (int i = 0; i < tabs.length; i++) {
             JLabel tab = new JLabel(tabs[i]);
             tab.setFont(new Font("맑은 고딕", Font.PLAIN, 13));
-            tab.setBorder(new EmptyBorder(9, 16, 9, 0));
+            tab.setBorder(new EmptyBorder(9, 16, 9, 16));
             tab.setForeground(i == 1 ? WHITE : GRAY);
             tabLabels[i] = tab;
 
@@ -792,8 +1085,8 @@ public class MainFrame extends JFrame {
 
         int remain = seat.getRemain();
         Color barColor = remain == 0 ? new Color(229,231,235)
-                       : remain < 30 ? new Color(251,191,36)
-                       : new Color(52,211,153);
+                : remain < 30 ? new Color(251,191,36)
+                  : new Color(52,211,153);
 
         JPanel barBg = new JPanel(null);
         barBg.setPreferredSize(new Dimension(80, 5));
@@ -806,8 +1099,8 @@ public class MainFrame extends JFrame {
         barBg.add(fill);
 
         Color rc = remain == 0 ? new Color(209,213,219)
-                 : remain < 30 ? new Color(217,119,6)
-                 : new Color(5,150,105);
+                : remain < 30 ? new Color(217,119,6)
+                  : new Color(5,150,105);
         String rt = remain == 0 ? "매진" : remain+"석";
 
         JLabel remL = new JLabel(rt);
@@ -918,22 +1211,16 @@ public class MainFrame extends JFrame {
         card.setBackground(WHITE);
         card.setBorder(new CompoundBorder(new LineBorder(new Color(229,231,235),1,true), new EmptyBorder(13,16,13,16)));
 
-        JLabel lbl = new JLabel("롯데 현재 순위");
-        lbl.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
-        lbl.setForeground(GRAY);
-
         JLabel val = new JLabel("조회 중...");
-        val.setFont(new Font("맑은 고딕", Font.BOLD, 22));
+        val.setFont(new Font("맑은 고딕", Font.BOLD, 26));
         val.setForeground(NAVY);
 
         JLabel sub = new JLabel("");
-        sub.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
+        sub.setFont(new Font("맑은 고딕", Font.PLAIN, 13));
         sub.setForeground(GRAY);
 
-        card.add(lbl);
-        card.add(Box.createVerticalStrut(4));
         card.add(val);
-        card.add(Box.createVerticalStrut(2));
+        card.add(Box.createVerticalStrut(4));
         card.add(sub);
 
         // 백그라운드에서 KBO 순위 크롤링
@@ -976,7 +1263,7 @@ public class MainFrame extends JFrame {
         String nextEventDate = null;
         try {
             java.io.BufferedReader br = new java.io.BufferedReader(
-                new java.io.InputStreamReader(new java.io.FileInputStream("events.txt"), "UTF-8"));
+                    new java.io.InputStreamReader(new java.io.FileInputStream("events.txt"), "UTF-8"));
             String line;
             List<String> eventDates = new ArrayList<>();
             while ((line = br.readLine()) != null) {
