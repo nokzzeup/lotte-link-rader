@@ -211,11 +211,6 @@ public class MainFrame extends JFrame {
         logo.setFont(new Font("맑은 고딕", Font.BOLD, 17));
         topBar.add(logo, BorderLayout.WEST);
 
-        JLabel user = new JLabel("smin1115");
-        user.setForeground(GRAY);
-        user.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
-        topBar.add(user, BorderLayout.EAST);
-
         JPanel ticker = new JPanel(new BorderLayout());
         ticker.setBackground(DARK_BG);
         ticker.setBorder(new EmptyBorder(6, 24, 6, 24));
@@ -240,7 +235,7 @@ public class MainFrame extends JFrame {
         nav.setBackground(NAVY);
         nav.setBorder(new EmptyBorder(0, 20, 0, 0));
 
-        String[] tabs = {"경기 일정", "내 찜 목록", "직관 기록", "팀 순위"};
+        String[] tabs = {"경기 일정", "내 찜 목록", "팀 순위"};
         JLabel[] tabLabels = new JLabel[tabs.length];
         JPanel[] tabWraps  = new JPanel[tabs.length];
 
@@ -276,8 +271,6 @@ public class MainFrame extends JFrame {
                         startBadgeRefresh();
                     } else if (idx == 1) {
                         bodyPanel.add(new WishCalendarPanel(), BorderLayout.CENTER);
-                    } else if (idx == 2) {
-                        bodyPanel.add(new RecordPanel(), BorderLayout.CENTER);
                     } else {
                         bodyPanel.add(new KboRankPanel(), BorderLayout.CENTER);
                     }
@@ -553,8 +546,8 @@ public class MainFrame extends JFrame {
         topCards.setPreferredSize(new Dimension(0, 92));
         topCards.setBorder(new EmptyBorder(0, 0, 12, 0));
         topCards.add(createTodayCard());
-        topCards.add(createCountdownCard("다음 예매 오픈", "D-13", "5/22 vs 삼성", false));
-        topCards.add(createCountdownCard("다음 이벤트", "D-15", "5/24 클래식 유니폼", true));
+        topCards.add(createLotteRankCard());
+        topCards.add(createNextEventCard());
         right.add(topCards, BorderLayout.NORTH);
 
         JPanel guide = new JPanel(new GridBagLayout());
@@ -878,23 +871,153 @@ public class MainFrame extends JFrame {
         card.setBackground(NAVY);
         card.setBorder(new CompoundBorder(new LineBorder(NAVY,1,true), new EmptyBorder(13,16,13,16)));
 
-        JLabel lbl   = new JLabel("● 오늘 경기 · 2026년 5월 12일");
+        // 오늘 경기 찾기
+        String today = new java.text.SimpleDateFormat("yyyyMMdd").format(new Date());
+        String todayDisp = new java.text.SimpleDateFormat("yyyy년 M월 d일").format(new Date());
+        String[] todayGame = null;
+        for (String[] g : GameSchedule.getAllGames()) {
+            if (g[0].equals(today)) { todayGame = g; break; }
+        }
+
+        JLabel lbl = new JLabel("● 오늘 경기 · " + todayDisp);
         lbl.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
         lbl.setForeground(new Color(150,170,200));
-
-        JLabel title = new JLabel("롯데 자이언츠 vs NC 다이노스");
-        title.setFont(new Font("맑은 고딕", Font.BOLD, 14));
-        title.setForeground(WHITE);
-
-        JLabel meta  = new JLabel("  18:30  ·  사직야구장  ·  맑음 22도  ·  현재 8위");
-        meta.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
-        meta.setForeground(new Color(130,155,185));
-
         card.add(lbl);
         card.add(Box.createVerticalStrut(5));
-        card.add(title);
+
+        if (todayGame != null) {
+            boolean isAway = todayGame[4].equals("원정");
+            String  time   = todayGame[1].substring(0,2) + ":" + todayGame[1].substring(2);
+            String  venue  = isAway ? "원정" : "사직야구장";
+
+            JLabel title = new JLabel("롯데 자이언츠 vs " + todayGame[2]);
+            title.setFont(new Font("맑은 고딕", Font.BOLD, 14));
+            title.setForeground(WHITE);
+
+            JLabel meta = new JLabel("  " + time + "  ·  " + venue);
+            meta.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
+            meta.setForeground(new Color(130,155,185));
+
+            card.add(title);
+            card.add(Box.createVerticalStrut(4));
+            card.add(meta);
+        } else {
+            JLabel noGame = new JLabel("오늘은 경기가 없습니다");
+            noGame.setFont(new Font("맑은 고딕", Font.BOLD, 13));
+            noGame.setForeground(WHITE);
+            card.add(noGame);
+        }
+
+        return card;
+    }
+
+    // ─── 다음 예매 오픈 카드 ──────────────────────────────────
+    private JPanel createLotteRankCard() {
+        JPanel card = new JPanel();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBackground(WHITE);
+        card.setBorder(new CompoundBorder(new LineBorder(new Color(229,231,235),1,true), new EmptyBorder(13,16,13,16)));
+
+        JLabel lbl = new JLabel("롯데 현재 순위");
+        lbl.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
+        lbl.setForeground(GRAY);
+
+        JLabel val = new JLabel("조회 중...");
+        val.setFont(new Font("맑은 고딕", Font.BOLD, 22));
+        val.setForeground(NAVY);
+
+        JLabel sub = new JLabel("");
+        sub.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
+        sub.setForeground(GRAY);
+
+        card.add(lbl);
         card.add(Box.createVerticalStrut(4));
-        card.add(meta);
+        card.add(val);
+        card.add(Box.createVerticalStrut(2));
+        card.add(sub);
+
+        // 백그라운드에서 KBO 순위 크롤링
+        new Thread(() -> {
+            List<KboService.TeamRank> ranks = KboService.fetchRanking();
+            SwingUtilities.invokeLater(() -> {
+                if (ranks.isEmpty()) {
+                    val.setText("-");
+                    sub.setText("순위 조회 실패");
+                    return;
+                }
+                for (KboService.TeamRank r : ranks) {
+                    if (r.isLotte()) {
+                        val.setText(r.rank + "위");
+                        sub.setText(r.win + "승 " + r.lose + "패 " + r.draw + "무  승률 " + r.winRate);
+                        break;
+                    }
+                }
+            });
+        }).start();
+
+        return card;
+    }
+
+    // ─── 다음 이벤트 카드 ─────────────────────────────────────
+    private JPanel createNextEventCard() {
+        JPanel card = new JPanel();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBackground(WHITE);
+        card.setBorder(new CompoundBorder(new LineBorder(new Color(229,231,235),1,true), new EmptyBorder(13,16,13,16)));
+
+        JLabel lbl = new JLabel("다음 이벤트");
+        lbl.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
+        lbl.setForeground(GRAY);
+        card.add(lbl);
+        card.add(Box.createVerticalStrut(4));
+
+        // events.txt에서 이벤트 날짜 읽기
+        String today = new java.text.SimpleDateFormat("yyyyMMdd").format(new Date());
+        String nextEventDate = null;
+        try {
+            java.io.BufferedReader br = new java.io.BufferedReader(
+                new java.io.InputStreamReader(new java.io.FileInputStream("events.txt"), "UTF-8"));
+            String line;
+            List<String> eventDates = new ArrayList<>();
+            while ((line = br.readLine()) != null) {
+                line = line.trim();
+                if (!line.isEmpty() && line.compareTo(today) >= 0) eventDates.add(line);
+            }
+            br.close();
+            Collections.sort(eventDates);
+            if (!eventDates.isEmpty()) nextEventDate = eventDates.get(0);
+        } catch (Exception e) {}
+
+        if (nextEventDate != null) {
+            long diff = 0;
+            try {
+                Date evDate = new java.text.SimpleDateFormat("yyyyMMdd").parse(nextEventDate);
+                diff = (evDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24) + 1;
+            } catch (Exception e) {}
+
+            // 해당 날짜 상대팀 찾기
+            String opp = "";
+            for (String[] g : GameSchedule.getAllGames()) {
+                if (g[0].equals(nextEventDate)) { opp = " vs " + g[2]; break; }
+            }
+
+            JLabel val = new JLabel("D-" + diff);
+            val.setFont(new Font("맑은 고딕", Font.BOLD, 22));
+            val.setForeground(RED);
+
+            JLabel sub = new JLabel(nextEventDate.substring(4,6) + "/" + nextEventDate.substring(6,8) + opp);
+            sub.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
+            sub.setForeground(GRAY);
+
+            card.add(val);
+            card.add(Box.createVerticalStrut(2));
+            card.add(sub);
+        } else {
+            JLabel none = new JLabel("-");
+            none.setFont(new Font("맑은 고딕", Font.BOLD, 22));
+            none.setForeground(RED);
+            card.add(none);
+        }
         return card;
     }
 
