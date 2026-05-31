@@ -113,24 +113,15 @@ public class NoticeManager {
             if (m.find()) {
                 String raw = m.group(1);
 
-                // 블록 태그 끝에 줄바꿈 먼저 삽입
-                raw = raw.replaceAll("</p>",  "\n");
-                raw = raw.replaceAll("</tr>", "\n");
-                raw = raw.replaceAll("</li>", "\n");
-                raw = raw.replaceAll("</div>","\n");
+                raw = raw.replaceAll("</p>",   "\n");
+                raw = raw.replaceAll("</tr>",  "\n");
+                raw = raw.replaceAll("</li>",  "\n");
+                raw = raw.replaceAll("</div>", "\n");
                 raw = raw.replaceAll("<br\\s*/?>", "\n");
-
-                // 표 셀 사이 공백
-                raw = raw.replaceAll("</th>", "  ");
-                raw = raw.replaceAll("</td>", "  ");
-
-                // 이미지 완전 제거
-                raw = raw.replaceAll("<img[^>]*>", "");
-
-                // 나머지 HTML 태그 제거
+                raw = raw.replaceAll("</th>",  "  ");
+                raw = raw.replaceAll("</td>",  "  ");
+                raw = raw.replaceAll("<img[^>]*>", ""); // 이미지 태그 제거 (별도 처리)
                 raw = raw.replaceAll("<[^>]+>", "");
-
-                // HTML 특수문자 변환
                 raw = raw.replaceAll("&nbsp;",   " ");
                 raw = raw.replaceAll("&amp;",    "&");
                 raw = raw.replaceAll("&lt;",     "<");
@@ -144,22 +135,52 @@ public class NoticeManager {
                 raw = raw.replaceAll("&#[0-9]+;","");
                 raw = raw.replaceAll("&[a-z]+;", "");
 
-                // 각 줄 앞뒤 공백 정리
                 StringBuilder sb = new StringBuilder();
                 for (String line : raw.split("\n")) {
                     sb.append(line.stripTrailing()).append("\n");
                 }
                 raw = sb.toString();
-
-                // 3줄 이상 빈줄 → 2줄로 정리
                 raw = raw.replaceAll("\n{3,}", "\n\n");
-
                 return raw.trim();
             }
         } catch (Exception e) {
             System.out.println("상세 크롤링 실패: " + e.getMessage());
         }
         return "내용을 불러올 수 없습니다.";
+    }
+
+    // ─── 공지 이미지 URL 목록 추출 ───────────────────────────
+    public static List<String> fetchImages(String url) {
+        List<String> images = new ArrayList<>();
+        try {
+            String html = httpGet(url);
+            if (html == null) return images;
+
+            // board-view-cont 영역 추출
+            Pattern contPattern = Pattern.compile(
+                "<td class=\"board-view-cont\"[^>]*>([\\s\\S]*?)</td>",
+                Pattern.DOTALL
+            );
+            Matcher m = contPattern.matcher(html);
+            if (!m.find()) return images;
+
+            String raw = m.group(1);
+
+            // img src 추출 (쌍따옴표 또는 홑따옴표)
+            Pattern imgPattern = Pattern.compile("src=\"([^\"]+)\"");
+            Matcher imgM = imgPattern.matcher(raw);
+            while (imgM.find()) {
+                String src = imgM.group(1).trim();
+                // 이미지 파일만 필터
+                if (!src.matches(".*\\.(jpg|jpeg|png|gif|webp)(\\?.*)?$")) continue;
+                if (src.startsWith("//"))  src = "https:" + src;
+                else if (src.startsWith("/")) src = "https://www.giantsclub.com" + src;
+                images.add(src);
+            }
+        } catch (Exception e) {
+            System.out.println("이미지 추출 실패: " + e.getMessage());
+        }
+        return images;
     }
 
     // ─── 웹 공지 병합 (중복 제거) ─────────────────────────────

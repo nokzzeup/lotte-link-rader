@@ -71,7 +71,7 @@ public class LoadingFrame extends JFrame {
 
         // ✅ 홈 경기 + PROGRAM_CD 있는 것만 조회 (원정 제외)
         new Thread(() -> {
-            List<String[]> games = GameSchedule.getUpcomingHomeGames(10);
+            List<String[]> games = GameSchedule.getUpcomingHomeGames(6);
 
             if (games.isEmpty()) {
                 SwingUtilities.invokeLater(() -> {

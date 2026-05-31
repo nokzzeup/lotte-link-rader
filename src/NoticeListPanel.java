@@ -2,7 +2,16 @@ import javax.swing.*;
 import javax.swing.border.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.image.BufferedImage;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
+import javax.imageio.ImageIO;
 
 public class NoticeListPanel extends JPanel {
 
@@ -23,7 +32,7 @@ public class NoticeListPanel extends JPanel {
     public NoticeListPanel() {
         setLayout(new BorderLayout());
         setBackground(WHITE);
-        setPreferredSize(new Dimension(280, 0));
+        setPreferredSize(new Dimension(340, 0));
         setBorder(new MatteBorder(0, 0, 0, 1, new Color(229, 231, 235)));
 
         NoticeManager.load();
@@ -167,7 +176,9 @@ public class NoticeListPanel extends JPanel {
         item.setBorder(new CompoundBorder(
                 new MatteBorder(0, 0, 1, 0, new Color(243, 244, 246)),
                 new EmptyBorder(10, 14, 10, 14)));
-        item.setMaximumSize(new Dimension(Integer.MAX_VALUE, 80));
+        item.setMaximumSize(new Dimension(Integer.MAX_VALUE, 72));
+        item.setMinimumSize(new Dimension(0, 72));
+        item.setPreferredSize(new Dimension(0, 72));
         item.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
         JPanel left = new JPanel();
@@ -183,17 +194,13 @@ public class NoticeListPanel extends JPanel {
         dateL.setForeground(GRAY);
         topRow.add(dateL);
 
-        // 제목 JTextArea (긴 제목 2줄 표시)
-        JTextArea title = new JTextArea(notice.getTitle());
+        // 제목 JLabel (한 줄 말줄임표)
+        String rawTitle = notice.getTitle();
+        String shortTitle = rawTitle.length() > 28 ? rawTitle.substring(0, 28) + "..." : rawTitle;
+        JLabel title = new JLabel(shortTitle);
         title.setFont(new Font("맑은 고딕", notice.isUnread() ? Font.BOLD : Font.PLAIN, 12));
         title.setForeground(notice.isUnread() ? new Color(17,24,39) : new Color(107,114,128));
-        title.setBackground(WHITE);
-        title.setLineWrap(true);
-        title.setWrapStyleWord(true);
-        title.setEditable(false);
-        title.setOpaque(false);
-        title.setBorder(null);
-        title.setRows(2);
+        title.setToolTipText(rawTitle); // 마우스 오버 시 전체 제목 표시
 
         left.add(topRow);
         left.add(Box.createVerticalStrut(3));
@@ -282,14 +289,11 @@ public class NoticeListPanel extends JPanel {
 
             String url = notice.getContent();
             new Thread(() -> {
-                String content = NoticeManager.fetchDetail(url);
+                String text   = NoticeManager.fetchDetail(url);
+                List<String> images = NoticeManager.fetchImages(url);
                 SwingUtilities.invokeLater(() -> {
                     card.remove(loading);
-                    if (content.trim().isEmpty() || content.equals("내용을 불러올 수 없습니다.")) {
-                        card.add(createImageNoticePanel(), BorderLayout.CENTER);
-                    } else {
-                        card.add(createContentPanel(content), BorderLayout.CENTER);
-                    }
+                    card.add(createRichContentPanel(text, images), BorderLayout.CENTER);
                     card.revalidate();
                     card.repaint();
                 });
@@ -310,7 +314,7 @@ public class NoticeListPanel extends JPanel {
             linkBtn.setBorder(new LineBorder(new Color(229,231,235)));
             linkBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             linkBtn.addActionListener(e -> {
-                try { Desktop.getDesktop().browse(new java.net.URI(notice.getContent())); }
+                try { Desktop.getDesktop().browse(new URI(notice.getContent())); }
                 catch (Exception ex) { JOptionPane.showMessageDialog(this, "브라우저를 열 수 없습니다.", "오류", JOptionPane.ERROR_MESSAGE); }
             });
             btnRow.add(linkBtn);
@@ -347,6 +351,84 @@ public class NoticeListPanel extends JPanel {
         detailPanel.add(card, BorderLayout.CENTER);
         detailPanel.revalidate();
         detailPanel.repaint();
+    }
+
+    // ─── 텍스트 + 이미지 통합 패널 ──────────────────────────────
+    private JScrollPane createRichContentPanel(String text, List<String> images) {
+        JPanel richPanel = new JPanel();
+        richPanel.setLayout(new BoxLayout(richPanel, BoxLayout.Y_AXIS));
+        richPanel.setBackground(WHITE);
+        richPanel.setBorder(new EmptyBorder(12, 18, 12, 18));
+
+        // 텍스트 본문 (있을 때만)
+        boolean hasText = text != null && !text.trim().isEmpty()
+                && !text.equals("내용을 불러올 수 없습니다.");
+        if (hasText) {
+            JTextArea textArea = new JTextArea(text);
+            textArea.setFont(new Font("맑은 고딕", Font.PLAIN, 13));
+            textArea.setForeground(new Color(55, 65, 81));
+            textArea.setBackground(WHITE);
+            textArea.setLineWrap(true);
+            textArea.setWrapStyleWord(true);
+            textArea.setEditable(false);
+            textArea.setBorder(null);
+            textArea.setAlignmentX(Component.LEFT_ALIGNMENT);
+            richPanel.add(textArea);
+            if (!images.isEmpty()) richPanel.add(Box.createVerticalStrut(12));
+        }
+
+        // 이미지 (있을 때만)
+        for (String imgUrl : images) {
+            try {
+                // 한글 URL 인코딩 처리
+                URL rawUrl = new URL(imgUrl);
+                String encodedPath = Arrays.stream(rawUrl.getPath().split("/"))
+                    .map(seg -> {
+                        try { return URLEncoder.encode(seg, "UTF-8").replace("+", "%20"); }
+                        catch (Exception e) { return seg; }
+                    })
+                    .reduce("", (a, b) -> a + "/" + b);
+                String encodedUrl = rawUrl.getProtocol() + "://" + rawUrl.getHost() + encodedPath;
+
+                HttpURLConnection conn = (HttpURLConnection) new URL(encodedUrl).openConnection();
+                conn.setRequestProperty("User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(8000);
+
+                BufferedImage bi = ImageIO.read(conn.getInputStream());
+                if (bi == null) continue;
+
+                // 패널 너비에 맞게 리사이즈
+                int maxW = 600;
+                int w = bi.getWidth(), h = bi.getHeight();
+                if (w > maxW) {
+                    h = (int) ((double) h * maxW / w);
+                    w = maxW;
+                }
+                Image scaled = bi.getScaledInstance(w, h, Image.SCALE_SMOOTH);
+                JLabel imgLabel = new JLabel(new ImageIcon(scaled));
+                imgLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                richPanel.add(imgLabel);
+                richPanel.add(Box.createVerticalStrut(8));
+            } catch (Exception e) {
+                System.out.println("이미지 로드 실패: " + imgUrl);
+            }
+        }
+
+        // 텍스트도 없고 이미지도 없으면 안내 메시지
+        if (!hasText && images.isEmpty()) {
+            JLabel msg = new JLabel("내용을 불러올 수 없습니다", SwingConstants.CENTER);
+            msg.setFont(new Font("맑은 고딕", Font.PLAIN, 13));
+            msg.setForeground(GRAY);
+            msg.setAlignmentX(Component.LEFT_ALIGNMENT);
+            richPanel.add(msg);
+        }
+
+        JScrollPane scroll = new JScrollPane(richPanel);
+        scroll.setBorder(null);
+        scroll.getVerticalScrollBar().setUnitIncrement(12);
+        return scroll;
     }
 
     private JScrollPane createContentPanel(String content) {

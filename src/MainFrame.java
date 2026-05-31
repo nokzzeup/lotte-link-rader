@@ -28,7 +28,12 @@ public class MainFrame extends JFrame {
     private JButton wishBtn;
     private JPanel bodyPanel;
 
-    private final Map<String, JLabel> badgeMap = new HashMap<>();
+    private final Map<String, JLabel>  badgeMap      = new HashMap<>();
+    private final Map<String, Integer> prevRemainMap = new HashMap<>(); // 취소표 감지용
+    private JLabel tickerLabel; // 티커 텍스트 실시간 업데이트용
+    private final List<String> tickerMessages = new ArrayList<>(); // 공지 순환용
+    private int tickerIndex = 0;
+    private Timer tickerTimer;
 
     // ─── 생성자 ──────────────────────────────────────────────
     public MainFrame() {
@@ -43,15 +48,95 @@ public class MainFrame extends JFrame {
 
         bodyPanel = new JPanel(new BorderLayout());
         bodyPanel.setBackground(BG);
-        bodyPanel.add(createLeftPanel(), BorderLayout.WEST);
-        bodyPanel.add(createRightPanel(), BorderLayout.CENTER);
+        bodyPanel.add(new WishCalendarPanel(), BorderLayout.CENTER);
         add(bodyPanel, BorderLayout.CENTER);
 
         setVisible(true);
-        startBadgeRefresh();
+        startWishRefresh(); // 찜한 경기 백그라운드 모니터링
     }
 
     // ─── 배지 갱신 ───────────────────────────────────────────
+    // ─── 공지 티커 업데이트 ─────────────────────────────────
+    private void startTickerUpdate() {
+        new Thread(() -> {
+            // 공지 크롤링
+            List<Notice> notices = NoticeManager.fetchFromWeb();
+            if (!notices.isEmpty()) {
+                tickerMessages.clear();
+                for (Notice n : notices) {
+                    tickerMessages.add("  [" + n.getTag() + "]  " + n.getTitle());
+                }
+            } else {
+                tickerMessages.add("  공지를 불러올 수 없습니다");
+            }
+
+            // 첫 번째 공지 바로 표시
+            SwingUtilities.invokeLater(() -> {
+                if (!tickerMessages.isEmpty()) {
+                    tickerLabel.setText(tickerMessages.get(0));
+                    tickerLabel.setForeground(new Color(180, 180, 180));
+                }
+            });
+
+            // 5초마다 다음 공지로 순환
+            tickerTimer = new Timer();
+            tickerTimer.schedule(new TimerTask() {
+                @Override public void run() {
+                    if (tickerMessages.isEmpty()) return;
+                    // 취소표 알림 중이면 순환 중지
+                    if (tickerLabel.getForeground().equals(new Color(255, 180, 180))) return;
+                    tickerIndex = (tickerIndex + 1) % tickerMessages.size();
+                    SwingUtilities.invokeLater(() ->
+                        tickerLabel.setText(tickerMessages.get(tickerIndex))
+                    );
+                }
+            }, 5000, 5000);
+        }).start();
+    }
+
+    // ─── 찜한 경기만 백그라운드 조회 (앱 시작 시 실행) ─────
+    private void startWishRefresh() {
+        Timer wishRefreshTimer = new Timer();
+        wishRefreshTimer.schedule(new TimerTask() {
+            @Override public void run() {
+                List<String[]> wished = WishManager.getAll();
+                for (String[] game : wished) {
+                    String date = game[0], time = game[1], cd = game[3];
+                    if (cd.isEmpty()) continue;
+                    new Thread(() -> {
+                        List<SeatInfo> seats = SeatEngine.fetch(date, time, cd);
+                        if (seats == null) return;
+
+                        int totalRemain = seats.stream()
+                                .filter(s -> !s.getName().contains("휠체어"))
+                                .mapToInt(SeatInfo::getRemain)
+                                .sum();
+
+                        Integer prev = prevRemainMap.get(date);
+                        if (prev != null && prev == 0 && totalRemain > 0) {
+                            SwingUtilities.invokeLater(() -> {
+                                if (tickerLabel != null) {
+                                    tickerLabel.setText("  [취소표] " + date.substring(4,6) + "/" +
+                                            date.substring(6,8) + " vs " + game[2] +
+                                            " 취소표 " + totalRemain + "석 발생!");
+                                    tickerLabel.setForeground(new Color(255, 180, 180));
+                                }
+                                // 배지도 업데이트 (경기일정 탭에 있을 경우)
+                                JLabel badge = badgeMap.get(date);
+                                if (badge != null) {
+                                    badge.setText("+" + totalRemain + "석");
+                                    badge.setBackground(new Color(254, 226, 226));
+                                    badge.setForeground(RED);
+                                }
+                            });
+                        }
+                        prevRemainMap.put(date, totalRemain);
+                    }).start();
+                }
+            }
+        }, 15000, 60000); // 15초 후 시작, 60초마다 반복
+    }
+
     private void startBadgeRefresh() {
         SwingUtilities.invokeLater(() -> {
             for (String[] game : GameSchedule.getUpcomingGames(30)) {
@@ -72,17 +157,37 @@ public class MainFrame extends JFrame {
 
     private void refreshAllBadges() {
         for (String[] game : GameSchedule.getUpcomingGames(30)) {
-            String date = game[0], time = game[1], cd = game[3];
+            String date = game[0], time = game[1], opp = game[2], cd = game[3];
             JLabel badge = badgeMap.get(date);
             if (badge == null || cd.isEmpty()) continue;
             new Thread(() -> {
                 List<SeatInfo> seats = SeatEngine.fetch(date, time, cd);
                 SwingUtilities.invokeLater(() -> {
                     if (seats == null) return;
-                    boolean sold = seats.stream()
+
+                    int totalRemain = seats.stream()
                             .filter(s -> !s.getName().contains("휠체어"))
-                            .allMatch(s -> s.getRemain() == 0);
-                    if (sold) setSoldOut(badge); else setOnSale(badge);
+                            .mapToInt(SeatInfo::getRemain)
+                            .sum();
+                    boolean sold = (totalRemain == 0);
+
+                    // 취소표 감지: 이전값 0 → 현재값 n
+                    Integer prev = prevRemainMap.get(date);
+                    if (prev != null && prev == 0 && totalRemain > 0) {
+                        badge.setText("+" + totalRemain + "석");
+                        badge.setBackground(new Color(254, 226, 226));
+                        badge.setForeground(RED);
+                        if (tickerLabel != null) {
+                            tickerLabel.setText("  [취소표] " + date.substring(4,6) + "/" +
+                                    date.substring(6,8) + " vs " + opp +
+                                    " 취소표 " + totalRemain + "석 발생!");
+                            tickerLabel.setForeground(new Color(255, 180, 180));
+                        }
+                    } else {
+                        if (sold) setSoldOut(badge); else setOnSale(badge);
+                    }
+
+                    prevRemainMap.put(date, totalRemain);
                 });
             }).start();
         }
@@ -122,10 +227,13 @@ public class MainFrame extends JFrame {
         tag.setFont(new Font("맑은 고딕", Font.BOLD, 10));
         ticker.add(tag, BorderLayout.WEST);
 
-        JLabel txt = new JLabel("  5/24 삼성전 — 클래식 유니폼 배포 이벤트 (선착순 3,000명)  |  5/26~28 LG전 예매 5/13 오후 2시 오픈 예정  |  5/12 NC전 3루 내야필드석A 취소표 7석 발생");
-        txt.setForeground(new Color(180, 180, 180));
-        txt.setFont(new Font("맑은 고딕", Font.PLAIN, 11));
-        ticker.add(txt, BorderLayout.CENTER);
+        tickerLabel = new JLabel("  공지를 불러오는 중...");
+        tickerLabel.setForeground(new Color(180, 180, 180));
+        tickerLabel.setFont(new Font("맑은 고딕", Font.PLAIN, 11));
+        ticker.add(tickerLabel, BorderLayout.CENTER);
+
+        // 공지 크롤링 후 티커 순환 시작
+        startTickerUpdate();
 
         // 상단 탭 4개
         JPanel nav = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -140,13 +248,13 @@ public class MainFrame extends JFrame {
             JLabel tab = new JLabel(tabs[i]);
             tab.setFont(new Font("맑은 고딕", Font.PLAIN, 13));
             tab.setBorder(new EmptyBorder(9, 16, 9, 0));
-            tab.setForeground(i == 0 ? WHITE : GRAY);
+            tab.setForeground(i == 1 ? WHITE : GRAY);
             tabLabels[i] = tab;
 
             JPanel wrap = new JPanel(new BorderLayout());
             wrap.setBackground(NAVY);
             wrap.add(tab, BorderLayout.CENTER);
-            if (i == 0) wrap.setBorder(new MatteBorder(0, 0, 2, 0, RED));
+            if (i == 1) wrap.setBorder(new MatteBorder(0, 0, 2, 0, RED));
             tabWraps[i] = wrap;
             nav.add(wrap);
 
@@ -221,7 +329,7 @@ public class MainFrame extends JFrame {
         List<String[]> open = new ArrayList<>(), away = new ArrayList<>(), soon = new ArrayList<>();
         for (String[] g : all) {
             boolean isAway = g.length >= 5 && g[4].equals("원정");
-            if (!isAway && !g[3].isEmpty()) open.add(g);
+            if (!isAway && !g[3].isEmpty() && open.size() < 6) open.add(g);
             else if (away.size() + soon.size() < 6) {
                 if (isAway) away.add(g);
                 else soon.add(g);
@@ -300,18 +408,20 @@ public class MainFrame extends JFrame {
     // ─── 경기 아이템 ─────────────────────────────────────────
     private JPanel createGameItem(String[] game, String status) {
         String date = game[0], time = game[1], opp = game[2];
-        boolean isAway = status.equals("원정");
+        boolean isAway   = status.equals("원정");
+        boolean isWished = WishManager.isWished(date);
+        Color   itemBg   = isWished ? new Color(255, 235, 238) : WHITE; // 연한 핑크
 
         JPanel item = new JPanel(new BorderLayout());
-        item.setBackground(WHITE);
+        item.setBackground(itemBg);
         item.setBorder(new CompoundBorder(
-                new MatteBorder(0, 3, 0, 0, WHITE),
+                new MatteBorder(0, 3, 0, 0, isWished ? RED : WHITE),
                 new EmptyBorder(10, 14, 10, 14)));
         item.setMaximumSize(new Dimension(Integer.MAX_VALUE, 68));
 
         JPanel dateBox = new JPanel();
         dateBox.setLayout(new BoxLayout(dateBox, BoxLayout.Y_AXIS));
-        dateBox.setBackground(WHITE);
+        dateBox.setBackground(itemBg);
         dateBox.setPreferredSize(new Dimension(34, 0));
 
         String[] days = {"일","월","화","수","목","금","토"};
@@ -336,7 +446,7 @@ public class MainFrame extends JFrame {
 
         JPanel info = new JPanel();
         info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
-        info.setBackground(WHITE);
+        info.setBackground(itemBg);
         info.setBorder(new EmptyBorder(0, 12, 0, 0));
 
         JLabel team = new JLabel("롯데 vs " + opp);
@@ -344,7 +454,7 @@ public class MainFrame extends JFrame {
         team.setForeground(isAway ? new Color(196,201,208) : new Color(17,24,39));
 
         JPanel badges = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
-        badges.setBackground(WHITE);
+        badges.setBackground(itemBg);
 
         JLabel timeL = new JLabel(time.substring(0,2)+":"+time.substring(2));
         timeL.setFont(new Font("맑은 고딕", Font.PLAIN, 11));
@@ -375,8 +485,8 @@ public class MainFrame extends JFrame {
         item.add(info, BorderLayout.CENTER);
 
         JPanel wrapper = new JPanel(new BorderLayout());
-        wrapper.setBackground(WHITE);
-        wrapper.setBorder(new MatteBorder(0, 0, 1, 0, new Color(243,244,246)));
+        wrapper.setBackground(itemBg);
+        wrapper.setBorder(new MatteBorder(0, 0, 1, 0, isWished ? new Color(255,200,210) : new Color(243,244,246)));
         wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, 68));
         wrapper.add(item);
 
@@ -384,11 +494,11 @@ public class MainFrame extends JFrame {
         item.addMouseListener(new MouseAdapter() {
             @Override public void mouseEntered(MouseEvent e) {
                 if (selectedItem != wrapper)
-                    setItemBg(wrapper, item, info, badges, dateBox, new Color(249,250,251));
+                    setItemBg(wrapper, item, info, badges, dateBox, isWished ? new Color(255,218,225) : new Color(249,250,251));
             }
             @Override public void mouseExited(MouseEvent e) {
                 if (selectedItem != wrapper)
-                    setItemBg(wrapper, item, info, badges, dateBox, WHITE);
+                    setItemBg(wrapper, item, info, badges, dateBox, itemBg);
             }
             @Override public void mouseClicked(MouseEvent e) {
                 if (selectedItem != null && selectedItem != wrapper)
@@ -397,7 +507,7 @@ public class MainFrame extends JFrame {
                 wrapper.setBorder(new MatteBorder(0,0,1,0, new Color(229,231,235)));
                 item.setBorder(new CompoundBorder(
                         new MatteBorder(0,3,0,0,NAVY), new EmptyBorder(10,14,10,14)));
-                setAllBg(wrapper, LIGHT_BG);
+                setAllBg(wrapper, isWished ? new Color(255,200,210) : LIGHT_BG);
                 selectedGame = game;
                 if (isAway) showAwayMessage(game);
                 else if (GameSchedule.isOnSiteOnly(date, time)) showOnSiteMessage(game);
@@ -492,7 +602,23 @@ public class MainFrame extends JFrame {
             }
         });
 
-        bottom.add(wishBtn, BorderLayout.EAST);
+        JButton bookBtn = new JButton("예매하기 →");
+        bookBtn.setFont(new Font("맑은 고딕", Font.BOLD, 11));
+        bookBtn.setForeground(WHITE);
+        bookBtn.setBackground(RED);
+        bookBtn.setOpaque(true);
+        bookBtn.setBorderPainted(false);
+        bookBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        bookBtn.addActionListener(e -> {
+            try { Desktop.getDesktop().browse(new java.net.URI("https://ticket.giantsclub.com")); }
+            catch (Exception ex) { JOptionPane.showMessageDialog(this, "브라우저를 열 수 없습니다.", "오류", JOptionPane.ERROR_MESSAGE); }
+        });
+
+        JPanel rightBtns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        rightBtns.setBackground(WHITE);
+        rightBtns.add(wishBtn);
+        rightBtns.add(bookBtn);
+        bottom.add(rightBtns, BorderLayout.EAST);
         right.add(bottom, BorderLayout.SOUTH);
         return right;
     }
@@ -702,6 +828,21 @@ public class MainFrame extends JFrame {
         row.add(dotW, BorderLayout.WEST);
         row.add(name, BorderLayout.CENTER);
         row.add(right, BorderLayout.EAST);
+
+        // 클릭 시 예매창 열기
+        if (selectedGame != null) {
+            String bookingUrl = ("https://ticket.giantsclub.com");
+            row.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            row.addMouseListener(new MouseAdapter() {
+                @Override public void mouseClicked(MouseEvent e) {
+                    try { Desktop.getDesktop().browse(new java.net.URI(bookingUrl)); }
+                    catch (Exception ex) { JOptionPane.showMessageDialog(null, "브라우저를 열 수 없습니다.", "오류", JOptionPane.ERROR_MESSAGE); }
+                }
+                @Override public void mouseEntered(MouseEvent e) { row.setBackground(new Color(249,250,251)); }
+                @Override public void mouseExited(MouseEvent e)  { row.setBackground(WHITE); }
+            });
+        }
+
         return row;
     }
 

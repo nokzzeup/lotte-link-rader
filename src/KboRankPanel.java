@@ -40,6 +40,15 @@ public class KboRankPanel extends JPanel {
         title.setForeground(new Color(17, 24, 39));
         header.add(title, BorderLayout.WEST);
 
+        // 전날 기준 날짜 표시
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.add(java.util.Calendar.DAY_OF_MONTH, -1);
+        String yesterday = new java.text.SimpleDateFormat("yyyy.MM.dd").format(cal.getTime());
+        JLabel dateLabel = new JLabel(yesterday + " 기준");
+        dateLabel.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
+        dateLabel.setForeground(GRAY);
+        header.add(dateLabel, BorderLayout.EAST);
+
         return header;
     }
 

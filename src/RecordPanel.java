@@ -294,7 +294,7 @@ public class RecordPanel extends JPanel {
         }
 
         // 삭제 버튼
-        JButton delBtn = new JButton("✕");
+        JButton delBtn = new JButton("X");
         delBtn.setFont(new Font("맑은 고딕", Font.PLAIN, 11));
         delBtn.setForeground(GRAY);
         delBtn.setBackground(WHITE);
