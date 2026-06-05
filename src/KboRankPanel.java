@@ -121,7 +121,7 @@ public class KboRankPanel extends JPanel {
                 rankTablePanel.repaint();
 
                 String now = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
-                lastUpdateLabel.setText("마지막 갱신 " + now + "  ·  출처: KBO 공식 홈페이지");
+                lastUpdateLabel.setText("마지막 갱신 " + now );
             });
         }).start();
     }
