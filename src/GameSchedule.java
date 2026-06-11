@@ -13,7 +13,7 @@ public class GameSchedule {
         TEAM_CD.put("한화", "10000011");
         TEAM_CD.put("두산", "10000013");
         TEAM_CD.put("SSG",  "");   // 확인 필요
-        TEAM_CD.put("KT",   "");   // 확인 필요
+        TEAM_CD.put("KT",   "10000028");   // 확인 필요
         TEAM_CD.put("키움", "");   // 확인 필요
     }
 
