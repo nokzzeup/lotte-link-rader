@@ -1,3 +1,5 @@
+23|예매|6/28(일) 경기 스페셜 요금 안내|https://www.giantsclub.com/html/?pcode=783&bcIdx=2&MODE=V&bidx=158237|2026.06.11|true
+22|기타|롯데, 요미우리 자이언츠 교류전|https://www.giantsclub.com/html/?pcode=783&bcIdx=2&MODE=V&bidx=158238|2026.06.11|true
 21|예매|2026 롯데자이언츠 퓨처스리그 6, 7월 예매 안내|https://www.giantsclub.com/html/?pcode=783&bcIdx=2&MODE=V&bidx=158231|2026.06.04|true
 20|예매|2026 롯데자이언츠 퓨처스리그 5월 예매 안내|https://www.giantsclub.com/html/?pcode=783&bcIdx=2&MODE=V&bidx=158196|2026.05.13|true
 19|예매|2026년 롯데자이언츠 6월, 7월 첫주 컬러프라이스 안내|https://www.giantsclub.com/html/?pcode=783&bcIdx=2&MODE=V&bidx=158197|2026.05.14|false
